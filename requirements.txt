@@ -1,0 +1,8 @@
+pandas
+numpy
+matplotlib
+scipy
+yfinance
+finmind  (如果你有用這個抓資料)
+plotly
+anywidget
