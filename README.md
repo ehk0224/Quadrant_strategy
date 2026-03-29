@@ -57,8 +57,8 @@ Distinct from traditional single-factor models, this strategy prioritizes adapti
 | **最大回撤 (Max Drawdown)** | **9.554%** | 風險控管於個位數邊緣，回撤極小。Risk maintained within single digits; minimal peak-to-trough decline. |
 | **Sortino Ratio** | **0.832** | 著重於下行風險的保護能力。High-level protection against downside risk. |
 
-![策略績效圖](./notebooks/newplot.png)
-![策略績效圖](./notebooks/2newplot.png)
+![策略績效圖](./notebooks/Returns.png)
+![策略績效圖](./notebooks/Cumulative_Equity.png)
 
 
 > **註**：回測區間涵蓋 726 天之市場多空循環，使用 300 檔高流動性標的進行跨截面模擬。
