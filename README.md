@@ -29,10 +29,10 @@ Distinct from traditional single-factor models, this strategy prioritizes adapti
 * **象限 III**：低波動 + 價格縮減（築底/盤整層級）。
 * **象限 IV**：低波動 + 價格擴張（穩定趨勢層級）。
 ---
-* **Quadrant I**: high volitility and expandsion.
-* **Quadrant II**: high volitility and contraction.
-* **Quadrant III**: low volitility and contraction.
-* **Quadrant IV**: low volitility and expansion.
+* **Quadrant I**: high volatility and expansion.
+* **Quadrant II**: high volatility and contraction.
+* **Quadrant III**: low volatility and contraction.
+* **Quadrant IV**: low volatility and expansion.
 
 ---
 
