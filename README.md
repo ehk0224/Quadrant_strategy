@@ -149,3 +149,7 @@ Conclusion: The strategy demonstrates high resilience across reshuffled market r
 This project, including all algorithms, strategy logic (specifically the Quadrant analysis), and backtesting frameworks, was independently developed by the author between January 1, 2026, and May 7, 2026.
 
 All rights reserved. This project constitutes Pre-hire Intellectual Property and is explicitly excluded from any future employment-related invention assignments.
+
+Digital Signature (SHA-256):
+bfb5e6779b1b5146054e31a14e51b9d4969012667dbae76657fbd447f6c6e9a3
+Verification snapshot of the full source code (including proprietary modules) taken on 2026-05-07.

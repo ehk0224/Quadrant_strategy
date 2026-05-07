@@ -129,3 +129,7 @@
 本專案及其所有演算法、策略邏輯（特別是 Quadrant 象限分析）與回測框架，均由作者於 2026 年 1 月 1 日至 2026 年 5 月 7 日 期間獨立開發完成。
 
 作者保留所有權利。本專案屬於「入職前智慧財產」，明確排除於任何未來雇傭關係相關的職務發明歸屬範圍之外。
+
+Digital Signature (SHA-256):
+bfb5e6779b1b5146054e31a14e51b9d4969012667dbae76657fbd447f6c6e9a3
+Verification snapshot of the full source code (including proprietary modules) taken on 2026-05-07.
