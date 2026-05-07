@@ -5,14 +5,15 @@ import yfinance as yf
 import numpy as np
 
 class Indicators:
-    def __init__(self, period="3y", length=200):
+    def __init__(self, period="3y", length=200, global_vix=False):
         self.period = period
         self.length = length
+        self.latest_vix_p = global_vix # 是否全局快取 VIX 百分位數
 
     def get_vix_percentile(self, df):
         # 檢查是否已經計算過 VIX，若無則進行第一次下載與計算
         if not hasattr(self, 'latest_vix_p'):
-            vix_raw = yf.download("^VIX", period="3y", progress=False)['Close']
+            vix_raw = yf.download("^VIX", period="3y", progress=False, auto_adjust=True)['Close']
             vix_p = vix_raw.rolling(252).rank(pct=True)
             
             if not vix_p.empty:
@@ -34,7 +35,7 @@ class Indicators:
     
     def get_adx(self, df):
         adx_df = df.groupby('ticker', group_keys=False).apply(
-            lambda g: ta.adx(g['high'], g['low'], g['adj_price'], length=14))
+            lambda g: ta.adx(g['high'], g['low'], g['adj_price'], length=14), include_groups=False)
         if adx_df is not None and not adx_df.empty:
             # 動態抓取 ADX 欄位名稱 (通常為 ADX_14)
             adx_col = [col for col in adx_df.columns if col.startswith('ADX')][0]
@@ -53,7 +54,7 @@ class Indicators:
             return res
 
         # 執行 groupby 並套用計算
-        atr_series = df.groupby('ticker', group_keys=False).apply(_calc_atr)
+        atr_series = df.groupby('ticker', group_keys=False).apply(_calc_atr, include_groups=False)
         
         # 雙重保險：如果 groupby 彙整後又變成了 DataFrame，再次強制取第一欄
         if isinstance(atr_series, pd.DataFrame):
@@ -72,7 +73,7 @@ class Indicators:
         # 1. 使用 groupby 與 apply 來處理 ta.bbands 回傳的 DataFrame
         # 設定 group_keys=False 以確保產出的 DataFrame Index 能與原始 df 對齊
         bbands = df.groupby('ticker', group_keys=False).apply(
-            lambda g: ta.bbands(g['adj_price'], length=20, std=2)
+            lambda g: ta.bbands(g['adj_price'], length=20, std=2), include_groups=False
         )
         
         if bbands is not None and not bbands.empty:

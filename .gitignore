@@ -2,6 +2,9 @@
 Quadrant.py
 strategy.py
 
+# Notebook.gitignore
+TESTING NOTE.ipynb
+
 # 數據檔案 (不要上傳超大 CSV)
 *.csv
 *.parquet

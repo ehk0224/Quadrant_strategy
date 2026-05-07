@@ -13,7 +13,7 @@ def quadrant_analysis(ticker):
     fetcher = yfinance_fetcher.YfinanceFetcher()
     ana = Quadrant.MarketQuadrantAnalyzer()
     
-    df = fetcher.fetch(ticker, period="3y") 
+    df = fetcher.fetch(ticker, start='2018-01-01', end='2023-12-31', period=None) 
     df_ind = ind.get_indicators(df)
     df_final = ana.analyze_dataframe(df_ind)
     df_final = ana.attach_descriptions(df_final)

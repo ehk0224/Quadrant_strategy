@@ -143,3 +143,9 @@ Conclusion: The strategy demonstrates high resilience across reshuffled market r
 -----
 
 **Disclaimer**: This project is for academic research and investment analysis purposes only and does not constitute financial advice. Parts of the analysis were assisted by AI and meticulously reviewed/optimized by the author.
+
+### Intellectual Property Statement
+
+This project, including all algorithms, strategy logic (specifically the Quadrant analysis), and backtesting frameworks, was independently developed by the author between January 1, 2026, and May 7, 2026.
+
+All rights reserved. This project constitutes Pre-hire Intellectual Property and is explicitly excluded from any future employment-related invention assignments.
