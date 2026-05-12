@@ -3,25 +3,29 @@ import vectorbt as vbt
 import concurrent.futures
 import time
 import random
-import numpy as np
-from indicators import Indicators
-import yfinance_fetcher
-import Quadrant
-from strategy import QuadrantStrategy
+from backtest_utils.indicatorsbt import Indicators
+import core_utils.yfinance_fetcher as yfinance_fetcher
+import core_utils.Quadrant as Quadrant
+from core_utils.strategy import QuadrantStrategy
+
+start = None
+end = None
+period = '3y'
 
 def quadrant_analysis(ticker):
     ind = Indicators()
     fetcher = yfinance_fetcher.YfinanceFetcher()
     ana = Quadrant.MarketQuadrantAnalyzer()
     
-    df = fetcher.fetch(ticker, period="3y") 
+    df = fetcher.fetch(ticker, start=start, end=end, period=period) 
     df_ind = ind.get_indicators(df)
     df_final = ana.analyze_dataframe(df_ind)
     df_final = ana.attach_descriptions(df_final)
+
     return df_final
 
 def fetch_and_generate_signals(ticker):
-    """供多執行緒呼叫的獨立任務，加入隨機延遲避免被封鎖"""
+    #供多執行緒呼叫的獨立任務，加入隨機延遲避免被封鎖
     try:
         # 隨機暫停 0.5 到 1.5 秒，打散請求頻率
         time.sleep(random.uniform(0.5, 1.5)) 
@@ -91,7 +95,7 @@ def main():
         freq='1D', 
         init_cash=100000,
         slippage=0.001,
-        tp_stop=0.1
+        tp_stop=0.5
     )
 
     # --- 防呆過濾 ---
@@ -103,59 +107,6 @@ def main():
         return
 
     valid_pf = pf[list(valid_tickers)]
-
-    # ==========================================
-    # 新增：隨機模擬驗證 (Monte Carlo Benchmark)
-    # ==========================================
-    print("\n執行隨機模擬驗證中 (Monte Carlo Benchmark)...")
-    n_sims = 500  # 測試次數
-    
-    # 1. 取得你原始策略的整體平均夏普值 (將 NaN 填補為 0 避免計算錯誤)
-    actual_sharpe = valid_pf.sharpe_ratio().fillna(0).mean()
-    
-    # 2. 計算原始訊號的進場與出場機率
-    # 這樣會讓「隨機產生器」的交易頻率，跟你的四象限策略幾乎一模一樣
-    entry_prob = entries_df.mean().mean() 
-    exit_prob = exits_df.mean().mean()
-    
-    # 防呆：如果你的策略目前完全沒有出場訊號，給定一個預設機率 (0.1 代表平均持倉 10 天)
-    if pd.isna(exit_prob) or exit_prob == 0: 
-        exit_prob = 0.1
-        
-    print(f"基準參數 -> 每日進場機率: {entry_prob:.4f}, 每日出場機率: {exit_prob:.4f}")
-    
-    sim_sharpes = []
-    
-    # 3. 使用迴圈進行多次隨機模擬
-    for i in range(n_sims):
-        rand_pf = vbt.Portfolio.from_random_signals(
-            close_df, 
-            entry_prob=entry_prob,
-            exit_prob=exit_prob,
-            fees=0.001425,
-            init_cash=100000,
-            slippage=0.001,
-            freq='1D'
-        )
-        # 把這次隨機模擬的「所有標的平均夏普值」存起來
-        sim_sharpes.append(rand_pf.sharpe_ratio().fillna(0).mean())
-        
-    sim_sharpes = np.array(sim_sharpes)
-    
-    # 4. 計算 P-value
-    #p_value = (sim_sharpes >= actual_sharpe).sum() / n_sims
-    p_value = ((sim_sharpes >= actual_sharpe).sum() + 1) / (n_sims + 1)  # 加 1 是為了避免 p-value 為 0 的情況，提供更穩健的估計
-    
-    print(f"\n--- 隨機模擬統計結果 ---")
-    print(f"原始策略平均夏普值: {actual_sharpe:.4f}")
-    print(f"隨機模擬平均夏普值: {sim_sharpes.mean():.4f}")
-    print(f"P-value: {p_value:.4f}")
-
-    if p_value < 0.05:
-        print(">>> 結論：統計顯著 (p < 0.05)！你的策略邏輯確實具備優勢，非隨機致勝。")
-    else:
-        print(">>> 結論：未達顯著標準，目前的績效分佈與隨機亂買差異不大。")
-    # ==========================================
 
     # 4. 產出報告
     try:
@@ -176,8 +127,8 @@ def main():
         final_perf_df.reset_index(inplace=True)
         
         # 輸出成 Excel
-        final_perf_df.to_excel("backtest_summary_random.xlsx", index=False)
-        print("\n個別標的回測結果已輸出至 backtest_summary_random.xlsx")
+        final_perf_df.to_excel("backtest_summary.xlsx", index=False)
+        print("\n個別標的回測結果已輸出至 backtest_summary.xlsx")
         
     except Exception as e:
         print(f"產出個別標的報表時發生錯誤: {e}")

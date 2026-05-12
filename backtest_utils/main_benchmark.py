@@ -3,24 +3,29 @@ import vectorbt as vbt
 import concurrent.futures
 import time
 import random
-from indicators import Indicators
-import yfinance_fetcher
-import Quadrant
-from strategy import QuadrantStrategy
+from backtest_utils.indicatorsbt import Indicators
+import core_utils.yfinance_fetcher as yfinance_fetcher
+import core_utils.Quadrant as Quadrant
+from core_utils.strategy import QuadrantStrategy
+
+start = None
+end = None
+period = '3y'
 
 def quadrant_analysis(ticker):
     ind = Indicators()
     fetcher = yfinance_fetcher.YfinanceFetcher()
     ana = Quadrant.MarketQuadrantAnalyzer()
     
-    df = fetcher.fetch(ticker, start='2018-01-01', end='2023-12-31', period=None) 
+    df = fetcher.fetch(ticker, start=start, end=end, period=period) 
     df_ind = ind.get_indicators(df)
     df_final = ana.analyze_dataframe(df_ind)
     df_final = ana.attach_descriptions(df_final)
+
     return df_final
 
 def fetch_and_generate_signals(ticker):
-    """供多執行緒呼叫的獨立任務，加入隨機延遲避免被封鎖"""
+    #供多執行緒呼叫的獨立任務，加入隨機延遲避免被封鎖
     try:
         # 隨機暫停 0.5 到 1.5 秒，打散請求頻率
         time.sleep(random.uniform(0.5, 1.5)) 
@@ -47,7 +52,6 @@ def main():
     dict_exits = {}
 
     # 1. 使用多執行緒加速資料獲取
-    # 將 max_workers 降低至安全範圍 (建議 3 到 5)
     with concurrent.futures.ProcessPoolExecutor(max_workers=5) as executor:
         futures = {executor.submit(fetch_and_generate_signals, t): t for t in ticker_list}
         
@@ -72,13 +76,24 @@ def main():
     entries_df = pd.DataFrame(dict_entries)
     exits_df = pd.DataFrame(dict_exits)
 
-    # --- 新增：強制轉換資料型態，解決 Numba 編譯錯誤 ---
-    # 將價格強制轉為浮點數 (float)
+    # 強制轉換資料型態
     close_df = close_df.astype(float)
-    
-    # 將訊號中的空值 (NaN) 視為不動作 (False)，並強制轉為布林值 (bool)
     entries_df = entries_df.fillna(False).astype(bool)
     exits_df = exits_df.fillna(False).astype(bool)
+
+    # ==========================================================
+    # 抓取 TWII (台灣加權指數) 資料作為 Benchmark 視覺化用途
+    # ==========================================================
+    print("抓取 TWII (大盤) 資料作為 Benchmark...")
+    try:
+        fetcher = yfinance_fetcher.YfinanceFetcher()
+        twii_df = fetcher.fetch("^TWII", start=start, end=end, period=period)
+        twii_close = twii_df['close'].astype(float)
+        benchmark_rets = twii_close.pct_change().dropna()
+    except Exception as e:
+        print(f"獲取 TWII 失敗: {e}")
+        benchmark_rets = None
+    # ==========================================================
 
     # 3. 向量化回測
     print("執行向量化回測...")
@@ -90,10 +105,9 @@ def main():
         freq='1D', 
         init_cash=100000,
         slippage=0.001,
-        tp_stop=0.1
+        tp_stop=0.5
     )
 
-    # --- 防呆過濾 ---
     trade_counts = pf.trades.count()
     valid_tickers = trade_counts[trade_counts > 0].index
 
@@ -107,21 +121,16 @@ def main():
     try:
         stats_list = []
         
-        # 走訪 valid_pf 中所有產生交易的股票代碼
         for ticker in valid_pf.wrapper.columns:
-            # 取得單一標的的績效數據
+            # 移除 benchmark_rets 參數，回歸預設統計計算
             s = valid_pf[ticker].stats()
-            s.name = ticker  # 設定 Series 的名稱為股票代碼
+            s.name = ticker
             stats_list.append(s)
             
-        # 將列表中的 Series 合併為一個 2D DataFrame，並進行轉置 (T)
         final_perf_df = pd.concat(stats_list, axis=1).T
-        
-        # 讓股票代碼成為獨立的一個欄位，方便在 Excel 中查看
         final_perf_df.index.name = 'Ticker'
         final_perf_df.reset_index(inplace=True)
         
-        # 輸出成 Excel
         final_perf_df.to_excel("backtest_summary.xlsx", index=False)
         print("\n個別標的回測結果已輸出至 backtest_summary.xlsx")
         
@@ -133,14 +142,46 @@ def main():
     
     print("\n--- 整體投資組合總績效 ---")
     try:
+        # 移除 benchmark_rets 參數
         print(overall_returns.vbt.returns(freq='1D').stats())
     except Exception as e:
         print(f"計算整體總績效時發生錯誤: {e}")
 
     print(f"\n總執行時間: {time.time() - start_time:.2f} 秒")
 
+    if benchmark_rets is not None:
+        print("\n--- 相對績效指標 (相對於 ^TWII) ---")
+        
+        # 1. 對齊日期：這是量化回測非常重要的一步，確保投組與大盤的交易日完全一致
+        aligned_rets = pd.concat([overall_returns, benchmark_rets], axis=1, join='inner').dropna()
+        port_rets = aligned_rets.iloc[:, 0]
+        bench_rets = aligned_rets.iloc[:, 1]
+        
+        try:
+            # 2. 直接呼叫 vectorbt 的 returns 模組來計算單一指標
+            # 注意：這裡的 freq 必須設定，否則 vectorbt 無法年化數據
+            vbt_beta = port_rets.vbt.returns(freq='1D').beta(benchmark_rets=bench_rets)
+            vbt_alpha = port_rets.vbt.returns(freq='1D').alpha(benchmark_rets=bench_rets)
+            
+            print(f"Beta (系統性風險): {vbt_beta:.4f}")
+            print(f"Alpha (年化超額報酬): {vbt_alpha:.4%}")
+            
+        except Exception as e:
+            print(f"計算 Alpha/Beta 時發生錯誤: {e}")
+
+    # 繪製圖表
     fig = total_equity.vbt.plot(trace_kwargs=dict(name='Total Equity', line=dict(color='blue')))
-    fig.update_layout(title_text='整體投資組合資金曲線', xaxis_title='日期', yaxis_title='總價值')
+    
+    # ==========================================================
+    # 將 Benchmark 資金曲線疊加於同一圖表
+    # ==========================================================
+    if benchmark_rets is not None:
+        initial_value = total_equity.iloc[0] 
+        benchmark_equity = initial_value * (1 + benchmark_rets).cumprod()
+        fig = benchmark_equity.vbt.plot(trace_kwargs=dict(name='Benchmark (^TWII)', line=dict(color='gray', dash='dash')), fig=fig)
+    # ==========================================================
+
+    fig.update_layout(title_text='整體投資組合資金曲線與大盤比較', xaxis_title='日期', yaxis_title='總價值')
     fig.show()
 
 if __name__ == "__main__":

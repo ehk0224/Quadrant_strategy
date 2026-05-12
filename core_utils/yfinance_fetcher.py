@@ -55,6 +55,8 @@ class YfinanceFetcher:
         #確保adj_price欄位存在，若不存在則嘗試從 close 或其他欄位推斷
         if 'adj_price' not in df.columns and 'close' in df.columns:
             df['adj_price'] = df['close']
+
+        df['adj_price'] = df['adj_price'].replace(0, pd.NA)  # 將價格為 0 的資料視為缺失值，避免後續計算錯誤
         
         #強制轉換數值型態，如果有非數值的資料會被轉成 NaN
         cols_to_numeric = ['open', 'high', 'low', 'close', 'adj_price', 'volume']

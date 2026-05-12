@@ -2,10 +2,10 @@ import pandas as pd
 import concurrent.futures
 import time
 import random
-from indicators import Indicators
-import yfinance_fetcher
-import Quadrant
-from strategy import QuadrantStrategy
+from dailysignal_utils.indicators import Indicators
+import core_utils.yfinance_fetcher as yfinance_fetcher
+import core_utils.Quadrant as Quadrant
+from core_utils.strategy import QuadrantStrategy
 import yfinance as yf
 import numpy as np
 

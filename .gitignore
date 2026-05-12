@@ -1,9 +1,11 @@
 # Python.gitignore
 Quadrant.py
 strategy.py
+Quadrantbt.py
 
 # Notebook.gitignore
 TESTING NOTE.ipynb
+notebooks
 
 # 數據檔案 (不要上傳超大 CSV)
 *.csv

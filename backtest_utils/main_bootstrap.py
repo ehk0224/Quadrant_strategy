@@ -4,10 +4,10 @@ import concurrent.futures
 import time
 import random
 import numpy as np
-from indicators import Indicators
-import yfinance_fetcher
-import Quadrant
-from strategy import QuadrantStrategy
+from backtest_utils.indicatorsbt import Indicators
+import core_utils.yfinance_fetcher as yfinance_fetcher
+import core_utils.Quadrant as Quadrant
+from core_utils.strategy import QuadrantStrategy
 
 def apply_block_bootstrap(returns_series, block_size=20, n_iterations=1000):
     """
@@ -123,7 +123,7 @@ def main():
         freq='1D', 
         init_cash=100000,
         slippage=0.001,
-        tp_stop=0.1
+        tp_stop=0.5
     )
 
     # --- 防呆過濾 ---
