@@ -187,5 +187,5 @@ This project, including all algorithms, strategy logic (specifically the Quadran
 All rights reserved. This project constitutes Pre-hire Intellectual Property and is explicitly excluded from any future employment-related invention assignments.
 
 Digital Signature (SHA-256):
-bfb5e6779b1b5146054e31a14e51b9d4969012667dbae76657fbd447f6c6e9a3
-Verification snapshot of the full source code (including proprietary modules) taken on 2026-05-07.
+7f9d8701e2aa30a31852097b173cfdfadd93801d4ed1526356e66ed08e047ed7
+Verification snapshot of the full source code (including proprietary modules) taken on 2026-05-14.

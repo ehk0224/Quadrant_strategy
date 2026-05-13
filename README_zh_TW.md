@@ -167,5 +167,5 @@
 作者保留所有權利。本專案屬於「入職前智慧財產」，明確排除於任何未來雇傭關係相關的職務發明歸屬範圍之外。
 
 Digital Signature (SHA-256):
-bfb5e6779b1b5146054e31a14e51b9d4969012667dbae76657fbd447f6c6e9a3
-Verification snapshot of the full source code (including proprietary modules) taken on 2026-05-07.
+7f9d8701e2aa30a31852097b173cfdfadd93801d4ed1526356e66ed08e047ed7
+Verification snapshot of the full source code (including proprietary modules) taken on 2026-05-14.
