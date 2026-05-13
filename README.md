@@ -150,7 +150,7 @@ Evaluated the strategy's risk-adjusted excess returns relative to the **Taiwan C
 - Alpha (Annualized Excess Return): 9.49%
   - After adjusting for market risk, the strategy generates a consistent annual surplus of approximately 9.5%.
 
-![Benchmark Equity](./benchmark_equity.png)
+![Benchmark Equity](./Benchmark_Equity.png)
 
 Conclusion: The combination of a low Beta and high Alpha confirms that the strategy does not rely on market beta (general upward trends) for profit. Instead, it captures structural alpha through its specific logic.
 

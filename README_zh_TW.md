@@ -137,7 +137,7 @@
 - Alpha (年化超額報酬): 9.49%
     - 在扣除大盤影響後，策略邏輯每年仍能貢獻約 9.5% 的超額增益。
 
-![Benchmark Equity](./benchmark_equity.png)
+![Benchmark Equity](./Benchmark_Equity.png)
 
 結論：極低的 Beta 值結合穩健的 Positive Alpha，證明該策略並非單純依賴市場多頭氛圍獲利，而是透過選股或擇時邏輯捕捉到了獨立於大盤波動的結構性獲利機會。
 
