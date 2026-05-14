@@ -204,5 +204,9 @@ def main():
     fig.update_layout(title_text='整體投資組合資金曲線', xaxis_title='日期', yaxis_title='總價值')
     fig.show()
 
+    # Bootstrap 模擬的分布圖
+    boot_series = pd.Series(boot_final_equities)
+    boot_series.vbt.histplot(title='Bootstrap 模擬最終淨值倍數分布', xaxis_title='最終淨值倍數', yaxis_title='頻率').show()
+
 if __name__ == "__main__":
     main()

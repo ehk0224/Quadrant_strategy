@@ -71,7 +71,7 @@ The **Total Return of 33.55%** over 725 days (including a 225-day burn-in period
 
   * **Distribution Profile**: A negative **Skewness (-0.927)** suggests a "left-skewed" distribution—frequent small gains occasionally interrupted by larger single-day losses. A **Kurtosis of 5.41** indicates a "fat-tail" distribution, where extreme events occur more frequently than in a normal distribution. However, a **Tail Ratio of 1.059** shows relative symmetry between extreme gains and losses. The **VaR (-0.007%)** confirms that, at a 95% confidence level, the expected maximum daily loss will not exceed 0.007%.
 
-### 2\. Equity Curve Analysis (Backtest: April 2024 – April 2026)
+### 2\. Equity Curve Analysis (Backtest: May 2024 – May 2026)
 
 Excluding the burn-in period, the equity curve illustrates three distinct phases:
 
@@ -117,6 +117,8 @@ We utilized a Block Bootstrap method to assess how the strategy performs under d
   - Median Final Equity Multiple: 1.28x
   - 90% Confidence Interval: [1.05x,1.57x]
   - Probability of Loss (Final Equity < 1): 1.7%
+
+![Bootstrap_Equity](./Bootstrap_Equity.png)
 
 Conclusion: The strategy demonstrates high resilience across reshuffled market regimes. In 1,000 paths, 98.3% ended in a profit, with the 90% confidence interval remaining strictly above the break-even line.
 
@@ -182,7 +184,7 @@ Conclusion: The combination of a low Beta and high Alpha confirms that the strat
 
 ### Intellectual Property Statement
 
-This project, including all algorithms, strategy logic (specifically the Quadrant analysis), and backtesting frameworks, was independently developed by the author between January 1, 2026, and May 7, 2026.
+This project, including all algorithms, strategy logic (specifically the Quadrant analysis), and backtesting frameworks, was independently developed by the author between January 1, 2026, and May 14, 2026.
 
 All rights reserved. This project constitutes Pre-hire Intellectual Property and is explicitly excluded from any future employment-related invention assignments.
 
