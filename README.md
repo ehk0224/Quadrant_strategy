@@ -140,6 +140,7 @@ To verify that the strategy retains its efficacy on data not used during the par
 
 **(2016-2019)**
 ![Cumulative Equity 2016-2019](./Cumulative_Equity_2016-2019.png)
+
 **(2018-2023)**
 ![Cumulative Equity 2018-2023](./Cumulative_Equity_2018-2023.png)
 
