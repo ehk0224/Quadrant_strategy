@@ -188,10 +188,10 @@ Conclusion: The combination of a low Beta and high Alpha confirms that the strat
 
 ### Intellectual Property Statement
 
-This project, including all algorithms, strategy logic (specifically the Quadrant analysis), and backtesting frameworks, was independently developed by the author between January 1, 2026, and May 14, 2026.
+This project, including all algorithms, strategy logic (specifically the Quadrant analysis), and backtesting frameworks, was independently developed by the author between January 1, 2026, and May 15, 2026.
 
 All rights reserved. This project constitutes Pre-hire Intellectual Property and is explicitly excluded from any future employment-related invention assignments.
 
 Digital Signature (SHA-256):
-7f9d8701e2aa30a31852097b173cfdfadd93801d4ed1526356e66ed08e047ed7
-Verification snapshot of the full source code (including proprietary modules) taken on 2026-05-14.
+82ecdb400e1f84506d84115322e91bd1a01fec52ca7dd6388ce16bec986e8ca6
+Verification snapshot of the full source code (including proprietary modules) taken on 2026-05-15.

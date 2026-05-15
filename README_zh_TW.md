@@ -170,10 +170,10 @@
 
 ### 智慧財產權聲明
 
-本專案及其所有演算法、策略邏輯（特別是 Quadrant 象限分析）與回測框架，均由作者於 2026 年 1 月 1 日至 2026 年 5 月 14 日 期間獨立開發完成。
+本專案及其所有演算法、策略邏輯（特別是 Quadrant 象限分析）與回測框架，均由作者於 2026 年 1 月 1 日至 2026 年 5 月 15 日 期間獨立開發完成。
 
 作者保留所有權利。本專案屬於「入職前智慧財產」，明確排除於任何未來雇傭關係相關的職務發明歸屬範圍之外。
 
 Digital Signature (SHA-256):
-7f9d8701e2aa30a31852097b173cfdfadd93801d4ed1526356e66ed08e047ed7
-Verification snapshot of the full source code (including proprietary modules) taken on 2026-05-14.
+82ecdb400e1f84506d84115322e91bd1a01fec52ca7dd6388ce16bec986e8ca6
+Verification snapshot of the full source code (including proprietary modules) taken on 2026-05-15.
