@@ -87,11 +87,10 @@ def main():
         close=close_df, 
         entries=entries_df, 
         exits=exits_df,
-        fees=0.001425,
+        fees=0.003,
         freq='1D', 
         init_cash=100000,
-        slippage=0.001,
-        tp_stop=0.5
+        slippage=0.002
     )
 
     # --- 防呆過濾 ---
@@ -132,9 +131,9 @@ def main():
             close_df, 
             entry_prob=entry_prob,
             exit_prob=exit_prob,
-            fees=0.001425,
+            fees=0.003,
             init_cash=100000,
-            slippage=0.001,
+            slippage=0.002,
             freq='1D'
         )
         # 把這次隨機模擬的「所有標的平均夏普值」存起來

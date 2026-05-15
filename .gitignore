@@ -13,6 +13,10 @@ notebooks
 *.h5
 *.xlsx
 .DS_Store
+*.html
+Cumulative_Equity0407.png
+Cumulative_Equity0424.png
+Cumulative_Equity0511.png
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

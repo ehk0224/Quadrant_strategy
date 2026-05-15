@@ -7,6 +7,7 @@ from backtest_utils.indicatorsbt import Indicators
 import core_utils.yfinance_fetcher as yfinance_fetcher
 import core_utils.Quadrant as Quadrant
 from core_utils.strategy import QuadrantStrategy
+import quantstats as qs
 
 start = None
 end = None
@@ -25,16 +26,30 @@ def quadrant_analysis(ticker):
     return df_final
 
 def fetch_and_generate_signals(ticker):
-    #供多執行緒呼叫的獨立任務，加入隨機延遲避免被封鎖
     try:
-        # 隨機暫停 0.5 到 1.5 秒，打散請求頻率
         time.sleep(random.uniform(0.5, 1.5)) 
         
         df = quadrant_analysis(ticker)
+        
+        # ====== 【關鍵修復：把日期拉回 Index】 ======
+        # 檢查日期是不是變成了一般的欄位，如果是，就把它設為 Index
+        # (這裡涵蓋了常見的大小寫命名，請依你實際的欄位名稱為主)
+        if 'Date' in df.columns:
+            df = df.set_index('Date')
+        elif 'date' in df.columns:
+            df = df.set_index('date')
+        elif 'Datetime' in df.columns:
+            df = df.set_index('Datetime')
+        
+        # 強制將目前的 Index 轉換為標準的時間格式
+        df.index = pd.to_datetime(df.index)
+        # ============================================
+
         entries, exits = QuadrantStrategy.generate_signals(df)
         return ticker, df['close'], entries, exits, None
     except Exception as e:
         return ticker, None, None, None, str(e)
+    
 
 def main():
     try:
@@ -85,19 +100,46 @@ def main():
     entries_df = entries_df.fillna(False).astype(bool)
     exits_df = exits_df.fillna(False).astype(bool)
 
+    # ==========================================================
+    # 抓取 TWII (台灣加權指數) 資料作為 Benchmark 視覺化用途
+    # ==========================================================
+    print("抓取 TWII (大盤) 資料作為 Benchmark...")
+    try:
+        fetcher = yfinance_fetcher.YfinanceFetcher()
+        twii_df = fetcher.fetch("^TWII", start=start, end=end, period=period)
+        
+        # ====== 【新增修復：把大盤的日期也拉回 Index】 ======
+        if 'Date' in twii_df.columns:
+            twii_df = twii_df.set_index('Date')
+        elif 'date' in twii_df.columns:
+            twii_df = twii_df.set_index('date')
+        elif 'Datetime' in twii_df.columns:
+            twii_df = twii_df.set_index('Datetime')
+        
+        # 強制轉換為標準時間格式
+        twii_df.index = pd.to_datetime(twii_df.index)
+        # ====================================================
+
+        twii_close = twii_df['close'].astype(float)
+        benchmark_rets = twii_close.pct_change().dropna()
+    except Exception as e:
+        print(f"獲取 TWII 失敗: {e}")
+        benchmark_rets = None
+    # ==========================================================
+
     # 3. 向量化回測
     print("執行向量化回測...")
     pf = vbt.Portfolio.from_signals(
         close=close_df, 
         entries=entries_df, 
         exits=exits_df,
-        fees=0.003,  # 調整為 0.3% 的手續費
+        fees=0.003,
         freq='1D', 
         init_cash=100000,
-        slippage=0.002  # 調整為 0.2% 的滑價
+        slippage=0.002
+        #tp_stop=0.5
     )
 
-    # --- 防呆過濾 ---
     trade_counts = pf.trades.count()
     valid_tickers = trade_counts[trade_counts > 0].index
 
@@ -132,14 +174,46 @@ def main():
     except Exception as e:
         print(f"產出個別標的報表時發生錯誤: {e}")
 
+    # --- 績效計算與時間軸校正 ---
+    original_index = close_df.index 
     total_equity = pf.value().sum(axis=1)
+    
+    # 強制校正時間軸
+    total_equity.index = original_index
     overall_returns = total_equity.pct_change().dropna()
     
-    print("\n--- 整體投資組合總績效 ---")
+    # 因為 dropna() 刪掉了第一天，所以索引要從第二天 [1:] 開始對齊
+    overall_returns.index = original_index[1:] 
+
+    # ===== 產出 QuantStats HTML =====
+    print("\n正在產出 QuantStats HTML 報表...")
     try:
-        print(overall_returns.vbt.returns(freq='1D').stats())
+        qs_input = overall_returns.copy()
+        # 先移除策略報酬率的時區
+        qs_input.index = pd.to_datetime(qs_input.index).tz_localize(None)
+
+        qs_benchmark = '^TWII' 
+        if 'benchmark_rets' in locals() and benchmark_rets is not None:
+            qs_benchmark = benchmark_rets.copy()
+            
+            # 修正 1：同樣先移除大盤資料的時區
+            qs_benchmark.index = pd.to_datetime(qs_benchmark.index).tz_localize(None)
+            
+            # 修正 2：避免使用 fillna(0) 破壞變異數
+            # 改用 intersection 取交集，確保日期完全對齊且皆有真實數值
+            common_index = qs_input.index.intersection(qs_benchmark.index)
+            qs_input = qs_input.loc[common_index]
+            qs_benchmark = qs_benchmark.loc[common_index]
+
+        qs.reports.html(
+            qs_input, 
+            benchmark=qs_benchmark, 
+            output='portfolio_tearsheet3.html',
+            title='My Strategy Tearsheet'
+        )
+        print("報表產出成功！")
     except Exception as e:
-        print(f"計算整體總績效時發生錯誤: {e}")
+        print(f"QuantStats 報表錯誤: {e}")
 
     print(f"\n總執行時間: {time.time() - start_time:.2f} 秒")
 

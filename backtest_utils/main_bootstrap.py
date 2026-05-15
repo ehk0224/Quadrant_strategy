@@ -119,11 +119,10 @@ def main():
         close=close_df, 
         entries=entries_df, 
         exits=exits_df,
-        fees=0.001425,
+        fees=0.003,
         freq='1D', 
         init_cash=100000,
-        slippage=0.001,
-        tp_stop=0.5
+        slippage=0.002
     )
 
     # --- 防呆過濾 ---
