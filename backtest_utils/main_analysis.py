@@ -193,7 +193,7 @@ def main():
         qs_input.index = pd.to_datetime(qs_input.index).tz_localize(None)
 
         qs_benchmark = '^TWII' 
-        if 'benchmark_rets' in locals() and benchmark_rets is not None:
+        if 'benchmark_rets' != None:
             qs_benchmark = benchmark_rets.copy()
             
             # 修正 1：同樣先移除大盤資料的時區
@@ -208,7 +208,7 @@ def main():
         qs.reports.html(
             qs_input, 
             benchmark=qs_benchmark, 
-            output='portfolio_tearsheet3.html',
+            output='portfolio_tearsheet.html',
             title='My Strategy Tearsheet'
         )
         print("報表產出成功！")
@@ -220,6 +220,6 @@ def main():
     fig = total_equity.vbt.plot(trace_kwargs=dict(name='Total Equity', line=dict(color='blue')))
     fig.update_layout(title_text='整體投資組合資金曲線', xaxis_title='日期', yaxis_title='總價值')
     fig.show()
-
+    return
 if __name__ == "__main__":
     main()

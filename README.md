@@ -16,7 +16,7 @@
 | **Skew** | -0.760228 |
 | **Value at Risk (95% CI)** | -0.007993 |
 
-![Cumulative Equity](./Cumulative_Equity0514.png)
+![Cumulative Equity](./equity_curve/Cumulative_Equity0514.png)
 
 > **Note**: The backtest covers 726 days of market cycles, utilizing a cross-sectional simulation of the top 300 highly liquid assets.
 
@@ -121,7 +121,7 @@ We utilized a Block Bootstrap method to assess how the strategy performs under d
   - 90% Confidence Interval: [1.05x,1.67x]
   - Probability of Loss (Final Equity < 1): 1.9%
 
-![Bootstrap_Equity](./Bootstrap_Equity.png)
+![Bootstrap_Equity](./equity_curve/Bootstrap_Equity.png)
 
 Conclusion: The strategy demonstrates high resilience across reshuffled market regimes. In 1,000 paths, 98.3% ended in a profit, with the 90% confidence interval remaining strictly above the break-even line.
 
@@ -139,10 +139,10 @@ To verify that the strategy retains its efficacy on data not used during the par
 | Calmar Ratio	| 0.87	| 0.97 |
 
 **(2016-2019)**
-![Cumulative Equity 2016-2019](./Cumulative_Equity_2016-2019.png)
+![Cumulative Equity 2016-2019](./equity_curve/Cumulative_Equity_2016-2019.png)
 
 **(2018-2023)**
-![Cumulative Equity 2018-2023](./Cumulative_Equity_2018-2023.png)
+![Cumulative Equity 2018-2023](./equity_curve/Cumulative_Equity_2018-2023.png)
 
 Conclusion: The strategy exhibits remarkable consistency. Maintaining a Sharpe Ratio above 1.2 across different market cycles suggests strong generalization and minimal overfitting.
 
@@ -156,7 +156,7 @@ Evaluated the strategy's risk-adjusted excess returns relative to the **Taiwan C
 - Alpha (Annualized Excess Return): 6%
   - After adjusting for market risk, the strategy generates a consistent annual surplus of approximately 6%.
 
-![Benchmark Equity](./Benchmark_Equity.png)
+![Benchmark Equity](./equity_curve/Benchmark_Equity.png)
 
 Conclusion: The combination of a low Beta and high Alpha confirms that the strategy does not rely on market beta (general upward trends) for profit. Instead, it captures structural alpha through its specific logic.
 

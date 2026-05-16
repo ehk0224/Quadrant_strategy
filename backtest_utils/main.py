@@ -25,9 +25,8 @@ def quadrant_analysis(ticker):
     return df_final
 
 def fetch_and_generate_signals(ticker):
-    #供多執行緒呼叫的獨立任務，加入隨機延遲避免被封鎖
+    '''供多執行緒呼叫的獨立任務，加入隨機延遲避免被封鎖'''
     try:
-        # 隨機暫停 0.5 到 1.5 秒，打散請求頻率
         time.sleep(random.uniform(0.5, 1.5)) 
         
         df = quadrant_analysis(ticker)
@@ -37,6 +36,7 @@ def fetch_and_generate_signals(ticker):
         return ticker, None, None, None, str(e)
 
 def main():
+    '''主函式，負責整體流程控制'''
     try:
         with open('Mystocks.txt', encoding='utf-16') as f:
             ticker_list = [line.strip() for line in f if line.strip()]
@@ -51,8 +51,6 @@ def main():
     dict_entries = {}
     dict_exits = {}
 
-    # 1. 使用多執行緒加速資料獲取
-    # 將 max_workers 降低至安全範圍 (建議 3 到 5)
     with concurrent.futures.ProcessPoolExecutor(max_workers=5) as executor:
         futures = {executor.submit(fetch_and_generate_signals, t): t for t in ticker_list}
         
@@ -71,33 +69,25 @@ def main():
         print("未成功取得任何數據。")
         return
 
-    # 2. 轉換為 2D DataFrame
     print("合併資料為 2D DataFrame...")
     close_df = pd.DataFrame(dict_close)
     entries_df = pd.DataFrame(dict_entries)
     exits_df = pd.DataFrame(dict_exits)
-
-    # --- 新增：強制轉換資料型態，解決 Numba 編譯錯誤 ---
-    # 將價格強制轉為浮點數 (float)
     close_df = close_df.astype(float)
-    
-    # 將訊號中的空值 (NaN) 視為不動作 (False)，並強制轉為布林值 (bool)
     entries_df = entries_df.fillna(False).astype(bool)
     exits_df = exits_df.fillna(False).astype(bool)
 
-    # 3. 向量化回測
     print("執行向量化回測...")
     pf = vbt.Portfolio.from_signals(
         close=close_df, 
         entries=entries_df, 
         exits=exits_df,
-        fees=0.003,  # 調整為 0.3% 的手續費
+        fees=0.003,  
         freq='1D', 
         init_cash=100000,
-        slippage=0.002  # 調整為 0.2% 的滑價
+        slippage=0.002  
     )
 
-    # --- 防呆過濾 ---
     trade_counts = pf.trades.count()
     valid_tickers = trade_counts[trade_counts > 0].index
 
@@ -107,25 +97,17 @@ def main():
 
     valid_pf = pf[list(valid_tickers)]
 
-    # 4. 產出報告
     try:
         stats_list = []
         
-        # 走訪 valid_pf 中所有產生交易的股票代碼
         for ticker in valid_pf.wrapper.columns:
-            # 取得單一標的的績效數據
             s = valid_pf[ticker].stats()
-            s.name = ticker  # 設定 Series 的名稱為股票代碼
+            s.name = ticker  
             stats_list.append(s)
             
-        # 將列表中的 Series 合併為一個 2D DataFrame，並進行轉置 (T)
-        final_perf_df = pd.concat(stats_list, axis=1).T
-        
-        # 讓股票代碼成為獨立的一個欄位，方便在 Excel 中查看
+        final_perf_df = pd.concat(stats_list, axis=1).T 
         final_perf_df.index.name = 'Ticker'
         final_perf_df.reset_index(inplace=True)
-        
-        # 輸出成 Excel
         final_perf_df.to_excel("backtest_summary.xlsx", index=False)
         print("\n個別標的回測結果已輸出至 backtest_summary.xlsx")
         
@@ -136,6 +118,7 @@ def main():
     overall_returns = total_equity.pct_change().dropna()
     
     print("\n--- 整體投資組合總績效 ---")
+
     try:
         print(overall_returns.vbt.returns(freq='1D').stats())
     except Exception as e:

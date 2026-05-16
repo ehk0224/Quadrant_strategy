@@ -15,7 +15,7 @@
 | **Skew** | -0.760228 |
 | **Value at Risk (95% CI)** | -0.007993 |
 
-![策略績效圖](./Cumulative_Equity0514.png)
+![策略績效圖](./equity_curve/Cumulative_Equity0514.png)
 > **註**：回測區間涵蓋 726 天之市場多空循環，使用 300 檔高流動性標的進行跨截面模擬。
 
 ## 目錄
@@ -110,7 +110,7 @@
     - 90% 信心區間 (Confidence Interval)： [1.05x,1.67x]
     - 最終虧損機率 (Probability of Loss)： 1.9%
 
-![Bootstrap_Equity](./Bootstrap_Equity.png)
+![Bootstrap_Equity](./equity_curve/Bootstrap_Equity.png)
 
 結論： 在 1,000 次序列重組模擬中，僅有 1.9% 的路徑出現虧損，且 90% 的情況下淨值皆能維持在 1.05 倍以上，顯示策略具備高度的環境適應力與穩健性。
 
@@ -128,10 +128,10 @@
 | Calmar Ratio	| 0.87	| 0.97 |
 
 **(2016-2019)**
-![Cumulative Equity 2016-2019](./Cumulative_Equity_2016-2019.png)
+![Cumulative Equity 2016-2019](./equity_curve/Cumulative_Equity_2016-2019.png)
 
 **(2018-2023)**
-![Cumulative Equity 2018-2023](./Cumulative_Equity_2018-2023.png)
+![Cumulative Equity 2018-2023](./equity_curve/Cumulative_Equity_2018-2023.png)
 
 結論：策略在不同週期下均維持了高度的一致性。樣本外測試的夏普值穩定保持在 1.2 以上，且最大回撤控制在 16% 以內。這表明策略邏輯具備良好的泛化能力（Generalization），並非僅針對特定行情進行擬合。
 
@@ -145,7 +145,7 @@
 - Alpha (年化超額報酬): 6%
     - 在扣除大盤影響後，策略邏輯每年仍能貢獻約 6% 的超額增益。
 
-![Benchmark Equity](./Benchmark_Equity.png)
+![Benchmark Equity](./equity_curve/Benchmark_Equity.png)
 
 結論：極低的 Beta 值結合穩健的 Positive Alpha，證明該策略並非單純依賴市場多頭氛圍獲利，而是透過選股或擇時邏輯捕捉到了獨立於大盤波動的結構性獲利機會。
 
