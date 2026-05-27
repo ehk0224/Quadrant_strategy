@@ -9,9 +9,9 @@ import core_utils.Quadrant as Quadrant
 from core_utils.strategy import QuadrantStrategy
 import quantstats as qs
 
-start = None
-end = None
-period = '3y'
+start = '2023-05-15'
+end = '2026-05-15'
+period = None
 
 def quadrant_analysis(ticker):
     ind = Indicators()
@@ -45,7 +45,7 @@ def fetch_and_generate_signals(ticker):
         df.index = pd.to_datetime(df.index)
         # ============================================
 
-        entries, exits = QuadrantStrategy.generate_signals(df)
+        entries, exits = QuadrantStrategy.generate_signals(df, warmup_period=225)
         return ticker, df['close'], entries, exits, None
     except Exception as e:
         return ticker, None, None, None, str(e)
@@ -91,6 +91,11 @@ def main():
     close_df = pd.DataFrame(dict_close)
     entries_df = pd.DataFrame(dict_entries)
     exits_df = pd.DataFrame(dict_exits)
+
+    warmup_period = 225
+    entries_df = entries_df.iloc[warmup_period:]
+    exits_df = exits_df.iloc[warmup_period:]
+    close_df = close_df.iloc[warmup_period:] # 確保價格資料也從暖機期結束後開始對齊
 
     # --- 新增：強制轉換資料型態，解決 Numba 編譯錯誤 ---
     # 將價格強制轉為浮點數 (float)

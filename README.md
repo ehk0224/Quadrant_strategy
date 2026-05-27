@@ -6,19 +6,19 @@
 
 | Metrics | Value |
 | :--- | :--- |
-| **Total Return [%]** | 34.742857 |
-| **Annualized Return [%]** | 16.174187 |
-| **Annualized Volatility [%]** | 9.112297 |
+| **Total Return [%]** | 35.083834 |
+| **Annualized Return [%]** | 24.4945 |
+| **Annualized Volatility [%]** | 10.95015 |
 | **Max Drawdown [%]** | 10.384584 |
-| **Sharpe Ratio** | 1.691185 |
-| **Calmar Ratio** | 1.557519 |
-| **Sortino Ratio** | 2.370197 |
-| **Skew** | -0.760228 |
-| **Value at Risk (95% CI)** | -0.007993 |
+| **Sharpe Ratio** | 2.056173 |
+| **Calmar Ratio** | 2.358737 |
+| **Sortino Ratio** | 2.877798 |
+| **Skew** | -0.737905 |
+| **Value at Risk (95% CI)** | -0.010185 |
 
-![Cumulative Equity](./equity_curve/Cumulative_Equity0514.png)
+![Cumulative Equity](./equity_curve/Cumulative_Equity0515.png)
 
-> **Note**: The backtest covers 726 days of market cycles, utilizing a cross-sectional simulation of the top 300 highly liquid assets.
+> **Note**: The backtest covers 500 days of market cycles, utilizing a cross-sectional simulation of the top 300 highly liquid assets.
 
 ## Table of Contents
 
@@ -33,7 +33,7 @@
 
 This project implements a quantitative trading model focused on the **Top 300 liquid assets in the Taiwan stock market**. The core logic categorizes market dynamics into four quadrants based on two dimensions: **Volatility** and **Price Expansion/Contraction**.
 
-Unlike traditional single-factor models, this strategy dynamically captures transition signals between quadrants to adjust asset allocation. It is an adaptive weighting system designed to maintain extremely low portfolio volatility while achieving robust risk-adjusted returns (Sharpe Ratio 1.6912).
+Unlike traditional single-factor models, this strategy dynamically captures transition signals between quadrants to adjust asset allocation. It is an adaptive weighting system designed to maintain extremely low portfolio volatility while achieving robust risk-adjusted returns (Sharpe Ratio 2.056).
 
 ### 1\. Universe Selection
 
@@ -63,13 +63,13 @@ Market states are defined to trigger entry and exit signals:
 
 ### 1\. Descriptive Statistics
 
-The **Total Return of 34.74%** over 726 days (including a 225-day burn-in period) reflects an **Annualized Return of 16.17%**, demonstrating consistent long-term profitability. With an **Annualized Volatility of 9.11%**, the equity curve remains exceptionally stable with minimal fluctuations.
+The **Total Return of 35.08%** over 726 days (including a 225-day burn-in period) reflects an **Annualized Return of 24.49%**, demonstrating consistent long-term profitability. With an **Annualized Volatility of 10.95%**, the equity curve remains exceptionally stable with minimal fluctuations.
 
-  * **Risk-Adjusted Return**: A **Sharpe Ratio of 1.691** indicates a healthy balance between risk and reward. The **Sortino Ratio (2.370)** outperforms the Sharpe Ratio, suggesting the strategy is particularly effective at mitigating downside risk compared to overall volatility.
+  * **Risk-Adjusted Return**: A **Sharpe Ratio of 2.056** indicates a healthy balance between risk and reward. The **Sortino Ratio (2.878)** outperforms the Sharpe Ratio, suggesting the strategy is particularly effective at mitigating downside risk compared to overall volatility.
 
   * **Drawdown & Resilience**: The **Max Drawdown (MDD) of 10.38%** highlights the strategy’s conservative nature. However, the **Max Drawdown Duration of 299 days** (nearly a year) indicates a long recovery period, which tests investor patience during stagnation.
 
-  * **Distribution Profile**: A negative **Skewness (-0.76)** suggests a "left-skewed" distribution—frequent small gains occasionally interrupted by larger single-day losses. A **Kurtosis of 4.622** indicates a "fat-tail" distribution, where extreme events occur more frequently than in a normal distribution. However, a **Tail Ratio of 1.044** shows relative symmetry between extreme gains and losses. The **VaR (-0.008%)** confirms that, at a 95% confidence level, the expected maximum daily loss will not exceed 0.008%.
+  * **Distribution Profile**: A **Kurtosis of 2.45** (expressed as excess kurtosis) confirms that the strategy exhibits a "fat-tail" (leptokurtic) distribution, where extreme events occur more frequently than in a normal distribution. However, when compared to the market benchmark's kurtosis of 7.68, the strategy demonstrates significantly reduced tail risk, indicating a more stable return profile under extreme market conditions. Meanwhile, a **Tail Ratio of 0.861** shows relative symmetry between extreme gains and losses, and the 95% **VaR of -0.01%** further highlights that daily downside risk is strictly managed.
 
 ### 2\. Equity Curve Analysis (Backtest: May 2024 – May 2026)
 
@@ -94,18 +94,18 @@ To ensure the strategy's performance is driven by structural logic rather than r
 
 ### 1. Monte Carlo Benchmark (Statistical Significance)
 
-This test compares the strategy’s performance against 1,000+ random trading paths (shuffling entry/exit while maintaining the same frequency).
+This test compares the strategy’s performance against 1,000 random trading paths (shuffling entry/exit while maintaining the same frequency).
 
 - Benchmark Parameters:
-  - Daily Entry Probability: 0.1496
-  - Daily Exit Probability: 0.2493
+  - Daily Entry Probability: 0.2166
+  - Daily Exit Probability: 0.3611
 
 - Results:
-  - Portfolio Sharpe Ratio: 1.691
-  - Mean Sharpe Ratio of Random Simulations: -0.8286
-  - P-Value: 0.0020 (p<0.05)
+  - Portfolio Sharpe Ratio: 2.056
+  - Mean Sharpe Ratio of Random Simulations: -1.3842
+  - P-Value: 0.0010 (p<0.05)
 
-Conclusion: The strategy’s performance is statistically significant. With a p-value of 0.2%, we can reject the null hypothesis that the returns are generated by chance, confirming a genuine edge in the logic.
+Conclusion: The strategy’s performance is statistically significant. With a p-value of 0.1%, we can reject the null hypothesis that the returns are generated by chance, confirming a genuine edge in the logic.
 
 ### 2. Block Bootstrap (Robustness Testing)
 
@@ -131,12 +131,12 @@ To verify that the strategy retains its efficacy on data not used during the par
 
 | Metrics | 2016 – 2019 (Early OOS) | 2018 – 2023 (Long-term OOS) |
 | :--- | :--- | :--- |
-| Annualized Return	| 10.46%	| 15.28% |
-| Annualized Volatility	| 8.18%	| 12.33% |
-| Sharpe Ratio	| 1.26	| 1.21 |
-| Sortino Ratio	| 1.68	| 1.63 |
+| Annualized Return	| 13.94%	| 18.35% |
+| Annualized Volatility	| 9.34%	| 13.41% |
+| Sharpe Ratio	| 1.45	| 1.32 |
+| Sortino Ratio	| 1.94	| 1.78 |
 | Max Drawdown	| 11.96%	| 15.75% |
-| Calmar Ratio	| 0.87	| 0.97 |
+| Calmar Ratio	| 1.17	| 1.16 |
 
 **(2016-2019)**
 ![Cumulative Equity 2016-2019](./equity_curve/Cumulative_Equity_2016-2019.png)

@@ -9,12 +9,16 @@ import core_utils.yfinance_fetcher as yfinance_fetcher
 import core_utils.Quadrant as Quadrant
 from core_utils.strategy import QuadrantStrategy
 
+start = '2023-05-15'
+end = '2026-05-15'
+period = None
+
 def quadrant_analysis(ticker):
     ind = Indicators()
     fetcher = yfinance_fetcher.YfinanceFetcher()
     ana = Quadrant.MarketQuadrantAnalyzer()
     
-    df = fetcher.fetch(ticker, period="3y") 
+    df = fetcher.fetch(ticker, start=start, end=end, period=period)
     df_ind = ind.get_indicators(df)
     df_final = ana.analyze_dataframe(df_ind)
     df_final = ana.attach_descriptions(df_final)
@@ -72,6 +76,10 @@ def main():
     close_df = pd.DataFrame(dict_close)
     entries_df = pd.DataFrame(dict_entries)
     exits_df = pd.DataFrame(dict_exits)
+    warmup_period = 225
+    entries_df = entries_df.iloc[warmup_period:]
+    exits_df = exits_df.iloc[warmup_period:]
+    close_df = close_df.iloc[warmup_period:] # 確保價格資料也從暖機期結束後開始對齊
 
     # --- 新增：強制轉換資料型態，解決 Numba 編譯錯誤 ---
     # 將價格強制轉為浮點數 (float)
@@ -107,7 +115,7 @@ def main():
     # 新增：隨機模擬驗證 (Monte Carlo Benchmark)
     # ==========================================
     print("\n執行隨機模擬驗證中 (Monte Carlo Benchmark)...")
-    n_sims = 500  # 測試次數
+    n_sims = 1000  # 測試次數
     
     # 1. 取得你原始策略的整體平均夏普值 (將 NaN 填補為 0 避免計算錯誤)
     actual_sharpe = valid_pf.sharpe_ratio().fillna(0).mean()
@@ -128,7 +136,7 @@ def main():
     # 3. 使用迴圈進行多次隨機模擬
     for i in range(n_sims):
         rand_pf = vbt.Portfolio.from_random_signals(
-            close_df, 
+            close=close_df, 
             entry_prob=entry_prob,
             exit_prob=exit_prob,
             fees=0.003,
@@ -136,8 +144,21 @@ def main():
             slippage=0.002,
             freq='1D'
         )
-        # 把這次隨機模擬的「所有標的平均夏普值」存起來
-        sim_sharpes.append(rand_pf.sharpe_ratio().fillna(0).mean())
+        
+        # --- 修正處：排除隨機模擬中未交易標的之影響，並清洗 inf ---
+        # 1. 取得這組模擬中，真正有發生交易的標的
+        rand_trade_counts = rand_pf.trades.count()
+        rand_valid_tickers = rand_trade_counts[rand_trade_counts > 0].index
+        
+        if len(rand_valid_tickers) > 0:
+            # 2. 僅針對有交易的標的計算夏普值
+            sharpes = rand_pf[list(rand_valid_tickers)].sharpe_ratio()
+            # 3. 強制將 inf 與 -inf 替換為 NaN，再用 fillna(0) 填補，最後算平均
+            clean_sharpes = sharpes.replace([np.inf, -np.inf], np.nan).fillna(0)
+            sim_sharpes.append(clean_sharpes.mean())
+        else:
+            # 如果這組模擬太極端，沒有任何標的產生交易，則給予 0
+            sim_sharpes.append(0.0)
         
     sim_sharpes = np.array(sim_sharpes)
     

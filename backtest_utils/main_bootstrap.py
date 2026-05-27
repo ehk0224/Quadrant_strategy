@@ -9,7 +9,12 @@ import core_utils.yfinance_fetcher as yfinance_fetcher
 import core_utils.Quadrant as Quadrant
 from core_utils.strategy import QuadrantStrategy
 
-def apply_block_bootstrap(returns_series, block_size=20, n_iterations=1000):
+start = '2023-05-15'
+end = '2026-05-15'
+period = None
+block_size = 20 
+
+def apply_block_bootstrap(returns_series, block_size=block_size, n_iterations=1000):
     """
     對報酬率序列執行 Block Bootstrap
     
@@ -46,7 +51,7 @@ def quadrant_analysis(ticker):
     fetcher = yfinance_fetcher.YfinanceFetcher()
     ana = Quadrant.MarketQuadrantAnalyzer()
     
-    df = fetcher.fetch(ticker, period="3y") 
+    df = fetcher.fetch(ticker, start=start, end=end, period=period) 
     df_ind = ind.get_indicators(df)
     df_final = ana.analyze_dataframe(df_ind)
     df_final = ana.attach_descriptions(df_final)
@@ -104,6 +109,10 @@ def main():
     close_df = pd.DataFrame(dict_close)
     entries_df = pd.DataFrame(dict_entries)
     exits_df = pd.DataFrame(dict_exits)
+    warmup_period = 225
+    entries_df = entries_df.iloc[warmup_period:]
+    exits_df = exits_df.iloc[warmup_period:]
+    close_df = close_df.iloc[warmup_period:] # 確保價格資料也從暖機期結束後開始對齊
 
     # --- 新增：強制轉換資料型態，解決 Numba 編譯錯誤 ---
     # 將價格強制轉為浮點數 (float)
@@ -176,7 +185,7 @@ def main():
     try:
         # 設定區塊為 20 天 (保留約一個月的市場自相關性)，執行 1000 次模擬
         n_sim = 1000
-        boot_final_equities = apply_block_bootstrap(overall_returns, block_size=20, n_iterations=n_sim)
+        boot_final_equities = apply_block_bootstrap(overall_returns, block_size=block_size, n_iterations=n_sim)
         
         # 計算統計數據
         p5 = np.percentile(boot_final_equities, 5)
@@ -184,7 +193,7 @@ def main():
         mean_equity = np.mean(boot_final_equities)
         median_equity = np.median(boot_final_equities)
         
-        print(f"Bootstrap 模擬次數: {n_sim} 次, 區塊大小: 20 天")
+        print(f"Bootstrap 模擬次數: {n_sim} 次, 區塊大小: {block_size} 天")
         print(f"平均最終淨值倍數 (相對於 1): {mean_equity:.2f}x")
         print(f"中位數最終淨值倍數: {median_equity:.2f}x")
         print(f"90% 信心區間: [{p5:.2f}x, {p95:.2f}x]")

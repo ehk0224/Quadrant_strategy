@@ -32,8 +32,15 @@ def get_today_signal(ticker, global_vix):
         if df_final.empty:
             return None, f"{ticker}: 指標計算後資料為空"
 
-        entries, exits = QuadrantStrategy.generate_signals(df_final)     
-        latest_idx = df_final.index[-1]
+        entries, exits = QuadrantStrategy.generate_signals(df_final)  
+        # 確保解包並轉換為帶有相同 index 的 Series
+        entry_desc, exit_desc = QuadrantStrategy.signal_description(df_final)
+
+        df_final['description'] = pd.concat([
+            pd.Series(entry_desc, index=df_final.index),
+            pd.Series(exit_desc, index=df_final.index)
+        ], axis=1).apply(lambda x: " | ".join([str(s) for s in x if pd.notna(s) and str(s).strip() != ""]), axis=1)
+        latest_idx = df_final.index[-1]     
 
         if hasattr(latest_idx, 'strftime'):
             date_str = latest_idx.strftime('%Y-%m-%d')
@@ -147,14 +154,24 @@ def main():
         if os.path.exists(file_path):
             try:
                 existing_df = pd.read_excel(file_path)
+                # 1. 先合併舊資料與今日新訊號
                 final_df = pd.concat([existing_df, active_signals], ignore_index=True)
+                
+                # 2. 關鍵修正：根據 Ticker 和 Date 進行去重
+                # keep='last' 代表如果同一天同隻股票有重複資料，以最新（今天剛抓到）的為主
+                final_df = final_df.drop_duplicates(subset=['Ticker', 'Date'], keep='last')
+                
+                # 3. 選用：依日期和標的排序，讓 Excel 表格更整齊好看
+                final_df = final_df.sort_values(by=['Date', 'Ticker'], ascending=[False, True]).reset_index(drop=True)
+                
             except Exception as e:
                 print(f"讀取舊檔案時發生錯誤（可能檔案損毀或格式不符），將直接覆蓋。錯誤資訊: {e}")
                 final_df = active_signals
         else:
             final_df = active_signals
+            
         final_df.to_excel(file_path, index=False)
-        print(f"\n已將 {len(active_signals)} 筆信號新增至 {file_path}")
+        print(f"\n已將 {len(active_signals)} 筆信號更新至 {file_path} (已自動過濾同日重複資料)")
     else:
         print("今日所有標的均未觸發買進或賣出信號。")
 

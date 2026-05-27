@@ -8,9 +8,9 @@ import core_utils.yfinance_fetcher as yfinance_fetcher
 import core_utils.Quadrant as Quadrant
 from core_utils.strategy import QuadrantStrategy
 
-start = None
-end = None
-period = '3y'
+start = '2023-05-15'
+end = '2026-05-15'
+period = None
 
 def quadrant_analysis(ticker):
     ind = Indicators()
@@ -76,6 +76,11 @@ def main():
     close_df = close_df.astype(float)
     entries_df = entries_df.fillna(False).astype(bool)
     exits_df = exits_df.fillna(False).astype(bool)
+    warmup_period = 225
+    entries_df = entries_df.iloc[warmup_period:]
+    exits_df = exits_df.iloc[warmup_period:]
+    close_df = close_df.iloc[warmup_period:] # 確保價格資料也從暖機期結束後開始對齊
+
 
     print("執行向量化回測...")
     pf = vbt.Portfolio.from_signals(
