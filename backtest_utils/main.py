@@ -8,11 +8,11 @@ import core_utils.yfinance_fetcher as yfinance_fetcher
 import core_utils.Quadrant as Quadrant
 from core_utils.strategy import QuadrantStrategy
 
-start = '2023-05-15'
-end = '2026-05-15'
-period = None
+start = None
+end = None
+period = '3y' 
 
-def quadrant_analysis(ticker):
+def quadrant_analysis(ticker): #傳入ticker，回傳DataFrame
     ind = Indicators()
     fetcher = yfinance_fetcher.YfinanceFetcher()
     ana = Quadrant.MarketQuadrantAnalyzer()
@@ -24,7 +24,7 @@ def quadrant_analysis(ticker):
 
     return df_final
 
-def fetch_and_generate_signals(ticker):
+def fetch_and_generate_signals(ticker): #計算單一標的的進出場訊號，供多執行緒呼叫
     '''供多執行緒呼叫的獨立任務，加入隨機延遲避免被封鎖'''
     try:
         time.sleep(random.uniform(0.5, 1.5)) 
@@ -44,7 +44,7 @@ def main():
         print("錯誤：找不到 'Mystocks.txt' 檔案。")
         return
 
-    start_time = time.time()
+    start_time = time.time()    # 記錄開始時間
     print(f"開始平行獲取 {len(ticker_list)} 檔標的資料與計算訊號...")
 
     dict_close = {}
@@ -52,7 +52,7 @@ def main():
     dict_exits = {}
 
     with concurrent.futures.ProcessPoolExecutor(max_workers=5) as executor:
-        futures = {executor.submit(fetch_and_generate_signals, t): t for t in ticker_list}
+        futures = {executor.submit(fetch_and_generate_signals, t): t for t in ticker_list}  # 任務給多進程執行器
         
         for future in concurrent.futures.as_completed(futures):
             ticker, close, entries, exits, error_msg = future.result()
@@ -73,9 +73,9 @@ def main():
     close_df = pd.DataFrame(dict_close)
     entries_df = pd.DataFrame(dict_entries)
     exits_df = pd.DataFrame(dict_exits)
-    close_df = close_df.astype(float)
-    entries_df = entries_df.fillna(False).astype(bool)
-    exits_df = exits_df.fillna(False).astype(bool)
+    close_df = close_df.astype(float)   #轉換為 float，避免後續計算出現問題
+    entries_df = entries_df.fillna(False).astype(bool)  #轉換為布林值，避免後續計算出現問題
+    exits_df = exits_df.fillna(False).astype(bool)      #轉換為布林值，避免後續計算出現問題
     warmup_period = 225
     entries_df = entries_df.iloc[warmup_period:]
     exits_df = exits_df.iloc[warmup_period:]
@@ -90,7 +90,8 @@ def main():
         fees=0.003,  
         freq='1D', 
         init_cash=100000,
-        slippage=0.002  
+        cash_sharing=True,
+        slippage=0.002
     )
 
     trade_counts = pf.trades.count()
@@ -101,6 +102,7 @@ def main():
         return
 
     valid_pf = pf[list(valid_tickers)]
+    trade_records = valid_pf.trades.records_readable
 
     try:
         stats_list = []
@@ -113,13 +115,17 @@ def main():
         final_perf_df = pd.concat(stats_list, axis=1).T 
         final_perf_df.index.name = 'Ticker'
         final_perf_df.reset_index(inplace=True)
-        final_perf_df.to_excel("backtest_summary.xlsx", index=False)
-        print("\n個別標的回測結果已輸出至 backtest_summary.xlsx")
+
+        with pd.ExcelWriter("backtest_summary_0701_w/10m.xlsx", engine='openpyxl') as writer:
+            final_perf_df.to_excel(writer, sheet_name="標的績效總覽", index=False)
+            trade_records.to_excel(writer, sheet_name="進出場交易明細", index=False)
+            
+        print("\n個別標的回測結果已輸出至 backtest_summary_0701_w/10m.xlsx (包含總覽與明細分頁)")
         
     except Exception as e:
         print(f"產出個別標的報表時發生錯誤: {e}")
 
-    total_equity = pf.value().sum(axis=1)
+    total_equity = pf.value().sum(axis=1) 
     overall_returns = total_equity.pct_change().dropna()
     
     print("\n--- 整體投資組合總績效 ---")

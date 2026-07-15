@@ -3,6 +3,7 @@ Quadrant.py
 strategy.py
 Quadrantbt.py
 strategy2.py
+line_notification.py
 
 # Notebook.gitignore
 TESTING NOTE.ipynb
