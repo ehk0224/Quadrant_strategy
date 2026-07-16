@@ -8,6 +8,7 @@ from backtest_utils.indicatorsbt import Indicators
 import core_utils.yfinance_fetcher as yfinance_fetcher
 import core_utils.Quadrant as Quadrant
 from core_utils.strategy import QuadrantStrategy
+import plotly.graph_objects as go
 
 start = '2023-05-15'
 end = '2026-05-15'
@@ -117,23 +118,18 @@ def main():
     print("\n執行隨機模擬驗證中 (Monte Carlo Benchmark)...")
     n_sims = 1000  # 測試次數
     
-    # 1. 取得你原始策略的整體平均夏普值 (將 NaN 填補為 0 避免計算錯誤)
     actual_sharpe = valid_pf.sharpe_ratio().fillna(0).mean()
-    
-    # 2. 計算原始訊號的進場與出場機率
-    # 這樣會讓「隨機產生器」的交易頻率，跟你的四象限策略幾乎一模一樣
     entry_prob = entries_df.mean().mean() 
     exit_prob = exits_df.mean().mean()
     
-    # 防呆：如果你的策略目前完全沒有出場訊號，給定一個預設機率 (0.1 代表平均持倉 10 天)
     if pd.isna(exit_prob) or exit_prob == 0: 
         exit_prob = 0.1
         
     print(f"基準參數 -> 每日進場機率: {entry_prob:.4f}, 每日出場機率: {exit_prob:.4f}")
     
     sim_sharpes = []
+    sim_equities = []  # <--- 新增：用來儲存每次模擬的整體資金曲線
     
-    # 3. 使用迴圈進行多次隨機模擬
     for i in range(n_sims):
         rand_pf = vbt.Portfolio.from_random_signals(
             close=close_df, 
@@ -145,26 +141,22 @@ def main():
             freq='1D'
         )
         
-        # --- 修正處：排除隨機模擬中未交易標的之影響，並清洗 inf ---
-        # 1. 取得這組模擬中，真正有發生交易的標的
+        # --- 記錄夏普值 ---
         rand_trade_counts = rand_pf.trades.count()
         rand_valid_tickers = rand_trade_counts[rand_trade_counts > 0].index
         
         if len(rand_valid_tickers) > 0:
-            # 2. 僅針對有交易的標的計算夏普值
             sharpes = rand_pf[list(rand_valid_tickers)].sharpe_ratio()
-            # 3. 強制將 inf 與 -inf 替換為 NaN，再用 fillna(0) 填補，最後算平均
             clean_sharpes = sharpes.replace([np.inf, -np.inf], np.nan).fillna(0)
             sim_sharpes.append(clean_sharpes.mean())
         else:
-            # 如果這組模擬太極端，沒有任何標的產生交易，則給予 0
             sim_sharpes.append(0.0)
+            
+        # --- 新增：記錄該次模擬的「整體投資組合總價值」 ---
+        sim_equities.append(rand_pf.value().sum(axis=1))
         
     sim_sharpes = np.array(sim_sharpes)
-    
-    # 4. 計算 P-value
-    #p_value = (sim_sharpes >= actual_sharpe).sum() / n_sims
-    p_value = ((sim_sharpes >= actual_sharpe).sum() + 1) / (n_sims + 1)  # 加 1 是為了避免 p-value 為 0 的情況，提供更穩健的估計
+    p_value = ((sim_sharpes >= actual_sharpe).sum() + 1) / (n_sims + 1)
     
     print(f"\n--- 隨機模擬統計結果 ---")
     print(f"原始策略平均夏普值: {actual_sharpe:.4f}")
@@ -180,22 +172,14 @@ def main():
     # 4. 產出報告
     try:
         stats_list = []
-        
-        # 走訪 valid_pf 中所有產生交易的股票代碼
         for ticker in valid_pf.wrapper.columns:
-            # 取得單一標的的績效數據
             s = valid_pf[ticker].stats()
-            s.name = ticker  # 設定 Series 的名稱為股票代碼
+            s.name = ticker
             stats_list.append(s)
             
-        # 將列表中的 Series 合併為一個 2D DataFrame，並進行轉置 (T)
         final_perf_df = pd.concat(stats_list, axis=1).T
-        
-        # 讓股票代碼成為獨立的一個欄位，方便在 Excel 中查看
         final_perf_df.index.name = 'Ticker'
         final_perf_df.reset_index(inplace=True)
-        
-        # 輸出成 Excel
         final_perf_df.to_excel("backtest_summary_random.xlsx", index=False)
         print("\n個別標的回測結果已輸出至 backtest_summary_random.xlsx")
         
@@ -213,8 +197,73 @@ def main():
 
     print(f"\n總執行時間: {time.time() - start_time:.2f} 秒")
 
-    fig = total_equity.vbt.plot(trace_kwargs=dict(name='Total Equity', line=dict(color='blue')))
-    fig.update_layout(title_text='整體投資組合資金曲線', xaxis_title='日期', yaxis_title='總價值')
+    # ==========================================
+    # 新增：使用 Plotly 繪製蒙地卡羅黑底模擬圖
+    # ==========================================
+    print("正在繪製蒙地卡羅模擬資金曲線圖...")
+    
+    # 將所有模擬資金曲線轉換為 DataFrame (欄位為模擬次數，列為日期)
+    sim_equities_df = pd.DataFrame(sim_equities).T
+    
+    fig = go.Figure()
+
+    # 1. 繪製所有隨機模擬路徑 (灰色、極高透明度、不顯示滑鼠懸停資訊以提升效能)
+    for col in sim_equities_df.columns:
+        fig.add_trace(
+            go.Scatter(
+                x=sim_equities_df.index,
+                y=sim_equities_df[col],
+                mode='lines',
+                line=dict(color='rgba(150, 150, 150, 0.05)', width=1), # 0.05 透明度
+                showlegend=False,
+                hoverinfo='skip' 
+            )
+        )
+
+    # 2. 繪製隨機模擬的平均路徑 (橘紅色虛線)
+    sim_mean_equity = sim_equities_df.mean(axis=1)
+    fig.add_trace(
+        go.Scatter(
+            x=sim_mean_equity.index,
+            y=sim_mean_equity,
+            mode='lines',
+            name='隨機模擬平均值',
+            line=dict(color='#FF851B', width=2, dash='dash')
+        )
+    )
+
+    # 3. 繪製原始策略資金曲線 (亮綠色粗線，突出顯示)
+    fig.add_trace(
+        go.Scatter(
+            x=total_equity.index,
+            y=total_equity,
+            mode='lines',
+            name='原始策略資金曲線',
+            line=dict(color='#01FF70', width=3.5) # 螢光綠
+        )
+    )
+
+    # 4. 設定黑底與排版
+    fig.update_layout(
+        title=dict(
+            text='蒙地卡羅隨機模擬 vs 原始策略資金曲線',
+            font=dict(size=20, color='white')
+        ),
+        xaxis_title='日期',
+        yaxis_title='投資組合總價值',
+        template='plotly_dark',       # 套用官方暗色主題
+        paper_bgcolor='#000000',      # 強制圖表外框全黑
+        plot_bgcolor='#000000',       # 強制繪圖區域全黑
+        hovermode='x unified',        # 游標移動時對齊顯示數據
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        )
+    )
+
     fig.show()
 
 if __name__ == "__main__":

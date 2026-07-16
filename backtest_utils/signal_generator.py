@@ -5,7 +5,7 @@ import random
 from backtest_utils.indicatorsbt import Indicators
 import core_utils.yfinance_fetcher as yfinance_fetcher
 import core_utils.Quadrant as Quadrant
-from core_utils.strategy import QuadrantStrategy
+from core_utils.strategy_opt import QuadrantStrategy
 
 class SignalGenerator:
     def __init__(self, ticker, start=None, end=None, period='3y', max_workers=5):
@@ -141,6 +141,71 @@ class SignalGenerator:
             benchmark_rets = None
 
         return benchmark_rets
+    
+    # =========================================================================
+    # 以下為新增：專門用於「參數高原優化」的快取與高速運算函數
+    # =========================================================================
+
+    def fetch_base_data(self, ticker): 
+        '''
+        只負責抓取資料與計算指標象限，不生成進出場訊號（供優化器預先抓資料使用）
+        '''
+        try:
+            df, is_cached = self.quadrant_analysis(ticker)
+            if not is_cached:
+                time.sleep(random.uniform(0.5, 1.5)) 
+            return ticker, df, None
+        except Exception as e:
+            return ticker, None, str(e)
+            
+    def prepare_all_data(self):
+        '''
+        一次性準備好所有標的的基礎資料（進參數優化迴圈前只會執行一次！）
+        '''
+        print("開始一次性預先計算所有標的的技術指標與象限資料...")
+        dict_data = {}
+        try:
+            with open('Mystocks.txt', encoding='utf-16') as f:
+                ticker_list = [line.strip() for line in f if line.strip()]
+
+            if not ticker_list:
+                print("錯誤：'Mystocks.txt' 檔案為空。")
+                return {}
+
+            with concurrent.futures.ProcessPoolExecutor(max_workers=self.max_workers) as executor:
+                futures = {executor.submit(self.fetch_base_data, t): t for t in ticker_list}
+                for future in concurrent.futures.as_completed(futures):
+                    ticker, df, error_msg = future.result()
+                    if error_msg:
+                        print(f"獲取 {ticker} 基礎資料失敗: {error_msg}")
+                    elif df is not None:
+                        dict_data[ticker] = df
+                        
+            print(f"成功將 {len(dict_data)} 檔標的的資料載入記憶體快取中！")
+            return dict_data
+            
+        except Exception as e:
+            print(f"預先準備資料時發生錯誤: {e}")
+            return {}
+
+    def generate_signals_from_cache(self, dict_data, **strat_params):
+        '''
+        在優化迴圈中被重複呼叫：直接從記憶體快取的 DataFrame，帶入新參數極速計算訊號
+        '''
+        dict_close = {}
+        dict_entries = {}
+        dict_exits = {}
+        
+        for ticker, df in dict_data.items():
+            # 1. 既然策略回傳的是 Tuple，直接宣告兩個變數 (entries, exits) 來接收！
+            entries, exits = QuadrantStrategy.generate_signals(df.copy(), **strat_params)
+            
+            # 2. close 價格直接從快取的 df 中提取，訊號則用剛剛接到的變數
+            dict_close[ticker] = df['close']
+            dict_entries[ticker] = entries
+            dict_exits[ticker] = exits
+            
+        return self.merge_dataframes(dict_close, dict_entries, dict_exits)
 
 if __name__ == "__main__":
     sg = SignalGenerator(ticker=None)
