@@ -20,6 +20,27 @@
 
 > **Note**: The backtest covers 500 days of market cycles, utilizing a cross-sectional simulation of the top 300 highly liquid assets.
 
+## Research Motivation
+
+The Taiwan equity market frequently exhibits two types of price dislocations:  
+1. **value opportunities** (undervalued stocks in bottoming phases)
+2. **momentum opportunities** (prices pushed higher by market sentiment or capital inflows). 
+
+Traditional single-factor strategies often capture only one of these, performing poorly during regime transitions.
+
+This project aims to build a **long-biased systematic strategy** that captures both types of alpha by using a **four-quadrant market regime framework**.
+
+We define market states along two key dimensions:
+- **Volatility**: measuring the intensity of market sentiment
+- **Price Expansion/Contraction**: measuring the direction and strength of price deviation from recent baselines
+
+By identifying transitions between the four quadrants, the strategy dynamically adjusts positions:
+- Accumulate in **bottoming/undervalued zones** (low volatility + contraction)
+- Ride trends in **expansion zones** (low-to-medium volatility + expansion)
+- Reduce exposure during overheating or panic phases
+
+The goal is to combine the strengths of mean-reversion (value) and trend-following (momentum) approaches, generating robust returns across market cycles while maintaining strict risk control.
+
 ## Table of Contents
 
   * [Core Strategy Logic](#core-strategy-logic)

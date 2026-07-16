@@ -3,11 +3,15 @@ Quadrant.py
 strategy.py
 Quadrantbt.py
 strategy2.py
+strategy_opt.py
 line_notification.py
 
 # Notebook.gitignore
 TESTING NOTE.ipynb
 notebooks
+
+# File.gitignore
+Developing
 
 # 數據檔案 (不要上傳超大 CSV)
 *.csv
