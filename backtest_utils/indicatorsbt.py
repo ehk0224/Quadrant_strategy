@@ -1,6 +1,5 @@
 # indicators.py
 import pandas as pd
-import pandas_ta as ta
 import yfinance as yf
 import numpy as np
 
@@ -10,218 +9,353 @@ class Indicators:
         self.length = length
         self.latest_vix_p = global_vix # 是否全局快取 VIX 百分位數
 
-    def get_vix_percentile(self, df, date_col='date'):
-        # 1. 確保有日期欄位可以進行點對點對齊
-        if date_col not in df.columns:
-            raise ValueError(f"DataFrame 必須包含 '{date_col}' 欄位才能進行時間對齊。如果日期在 index，請先 reset_index()。")
+    def get_vix_percentile(self, df):
+        # 1. 防呆：檢查 df 的 index 是否為時間索引，並標準化（移除時區以利絕對對齊）
+        if not isinstance(df.index, pd.DatetimeIndex):
+            raise ValueError(" DataFrame 的 Index 必須是 DatetimeIndex 才能進行時序對齊！")
+        if df.index.tz is not None:
+            df.index = df.index.tz_localize(None)
 
-        # 2. 下載 VIX 歷史序列 (保留原本的 rolling rank 與 shift 邏輯)
+        # 2. 下載 VIX 歷史序列並計算 252 日滾動百分位數 (維持 T-1 日邏輯)
+        # 💡 加上 autoadjust=True 並直接取 'Close'，確保拿到 1D Series
         vix_raw = yf.download("^VIX", period=self.period, progress=False, auto_adjust=True)['Close']
-        
-        # 處理 yfinance 可能回傳單行 DataFrame 或 Series 的情況
         if isinstance(vix_raw, pd.DataFrame):
             vix_raw = vix_raw.squeeze()
             
-        vix_p = vix_raw.rolling(252).rank(pct=True)
-        vix_p_shifted = vix_p.shift(1) # T 日使用 T-1 日的數據
-
-        # 3. 建立時間序列 DataFrame 並統一日期的格式 (移除時區以利對齊)
-        vix_df = vix_p_shifted.reset_index()
-        vix_df.columns = [date_col, 'vix_percentile'] 
+        vix_p_shifted = vix_raw.rolling(252).rank(pct=True).shift(1)
         
-        vix_df[date_col] = pd.to_datetime(vix_df[date_col]).dt.tz_localize(None)
-        df[date_col] = pd.to_datetime(df[date_col]).dt.tz_localize(None)
+        # 同樣將 VIX 的時區移除，準備進行點對點對齊
+        if vix_p_shifted.index.tz is not None:
+            vix_p_shifted.index = vix_p_shifted.index.tz_localize(None)
 
-        # 4. 點對點合併：根據日期左關聯，每一天的股價都會配到對應日期的 VIX
-        df = pd.merge(df, vix_df, on=date_col, how='left')
+        # 3. 【關鍵：矩陣廣播與自動對齊】
+        # 獲取目前的股票代號清單 (Level 1)
+        tickers = df.columns.get_level_values(1).unique()
         
-        return df
+        # 利用 dict.fromkeys 將 VIX Series 廣播給每一個 Ticker
+        # 並且傳入 index=df.index，讓 Pandas 底層秒速完成「日期左對齊與裁切」！
+        vix_matrix = pd.DataFrame(
+            dict.fromkeys(tickers, vix_p_shifted), 
+            index=df.index
+        )
+
+        # 4. 掛上與原本 df 一致的 MultiIndex 外衣
+        vix_matrix.columns = pd.MultiIndex.from_product(
+            [['vix_percentile'], tickers], 
+            names=['feature', 'ticker']
+        )
+        
+        return vix_matrix
 
     def get_ma200(self, df):
-        df['ma200'] = df.groupby('ticker')['adj_price'].transform(lambda x: ta.sma(x, length=self.length))
-        return df
+        # 1. 防禦性檢查：確認是否有 MultiIndex
+        if isinstance(df.columns, pd.MultiIndex):
+            price_matrix = df.xs('adj_price', axis=1, level='feature')
+        else:
+            # 2. 備援處理：若已經是單層索引，直接確認是否有目標欄位
+            if 'adj_price' in df.columns:
+                price_matrix = df['adj_price']
+            else:
+                # 3. 輸出詳細狀態以利除錯
+                raise TypeError(
+                    f"DataFrame 欄位結構錯誤。預期為 MultiIndex 或包含 'adj_price'，"
+                    f"實際 columns 型態為 {type(df.columns)}，內容: {df.columns[:5]}"
+                )
+            
+        # --- 計算 200 日移動平均 ---
+        ma200_matrix = price_matrix.rolling(200).mean()
+
+        # --- 為新計算的矩陣「重新掛上」雙層欄位標籤 ---
+        ma200_matrix.columns = pd.MultiIndex.from_product(
+            [['ma200'], ma200_matrix.columns], 
+            names=['feature', 'ticker']
+        )
+
+        return ma200_matrix
     
     def get_rsi(self, df):
-        df['rsi'] = df.groupby('ticker')['adj_price'].transform(lambda x: ta.rsi(x, length=14))
-        return df
-    
-    def get_adx(self, df):
-        adx_df = df.groupby('ticker', group_keys=False).apply(
-            lambda g: ta.adx(g['high'], g['low'], g['adj_price'], length=14), include_groups=False)
-        if adx_df is not None and not adx_df.empty:
-            # 動態抓取 ADX 欄位名稱 (通常為 ADX_14)
-            adx_col = [col for col in adx_df.columns if col.startswith('ADX')][0]
-            df['adx'] = adx_df[adx_col]
-        else:
-            df['adx'] = np.nan
-        return df
+        # 1. 向量化計算每日漲跌 (直接對整個 2D 矩陣相減)
+        delta = df.xs('adj_price', axis=1, level='feature').diff()
 
-    def get_atr(self, df):
-        def _calc_atr(g):
-            # 計算 ATR
-            res = ta.atr(g['high'], g['low'], g['adj_price'], length=14)
-            # 如果回傳的是 DataFrame，強制取出第一欄的 Series
-            if isinstance(res, pd.DataFrame):
-                return res.iloc[:, 0]
-            return res
+        # 2. 將漲與跌分離成兩個獨立矩陣
+        gain = delta.clip(lower=0)
+        loss = -1 * delta.clip(upper=0)
 
-        # 執行 groupby 並套用計算
-        atr_series = df.groupby('ticker', group_keys=False).apply(_calc_atr, include_groups=False)
+        # 3. 向量化計算 Wilder's 平滑移動平均 (等同於 ta.rsi 底層的 RMA/EMA)
+        # RSI 的 alpha 參數固定為 1 / length
+        avg_gain = gain.ewm(alpha=1/14, min_periods=14, adjust=False).mean()
+        avg_loss = loss.ewm(alpha=1/14, min_periods=14, adjust=False).mean()
+
+        # 4. 向量化算出相對強弱 RS 與 RSI 矩陣
+        rs = avg_gain / avg_loss
+        rsi_matrix = 100 - (100 / (1 + rs))
+
+        rsi_matrix.columns = pd.MultiIndex.from_product(
+            [['rsi'], rsi_matrix.columns], 
+            names=['feature', 'ticker']
+        )
+
+        return rsi_matrix
+
+    def get_adx(self, df, length=14):
+        high = df.xs('high', axis=1, level='feature')
+        low = df.xs('low', axis=1, level='feature')
+        close = df.xs('adj_price', axis=1, level='feature')
         
-        # 雙重保險：如果 groupby 彙整後又變成了 DataFrame，再次強制取第一欄
-        if isinstance(atr_series, pd.DataFrame):
-            df['atr'] = atr_series.iloc[:, 0]
-        else:
-            df['atr'] = atr_series
-            
-        return df
-    
-    def get_atr_60d_avg(self, df):
-        if 'atr' in df.columns:
-            df['atr_60d_avg'] = df.groupby('ticker')['atr'].transform(lambda x: x.rolling(60).mean())
-        return df
-    
-    def get_bbw_percentile(self, df):
-        # 1. 使用 groupby 與 apply 來處理 ta.bbands 回傳的 DataFrame
-        # 設定 group_keys=False 以確保產出的 DataFrame Index 能與原始 df 對齊
-        bbands = df.groupby('ticker', group_keys=False).apply(
-            lambda g: ta.bbands(g['adj_price'], length=20, std=2), include_groups=False
+        prev_close = close.shift(1)
+        prev_high = high.shift(1)
+        prev_low = low.shift(1)
+
+        # 1. 向量化計算 True Range (TR) 的三個分量
+        tr1 = high - low
+        tr2 = (high - prev_close).abs()
+        tr3 = (low - prev_close).abs()
+        
+        # 矩陣元素級別取最大值 (Element-wise maximum)
+        tr = pd.DataFrame(
+            np.maximum(np.maximum(tr1.values, tr2.values), tr3.values),
+            index=tr1.index,
+            columns=tr1.columns
         )
         
-        if bbands is not None and not bbands.empty:
-            # 取得對應的欄位名稱
-            bbu_col = [col for col in bbands.columns if 'BBU' in col][0]
-            bbl_col = [col for col in bbands.columns if 'BBL' in col][0]
-            bbm_col = [col for col in bbands.columns if 'BBM' in col][0]
-            
-            # 計算布林通道寬度 (Bollinger Band Width)
-            bbw = (bbands[bbu_col] - bbands[bbl_col]) / bbands[bbm_col]
-            
-            # 2. 將 bbw 暫存至 df，以便進行 groupby 計算 rolling rank
-            df['temp_bbw'] = bbw
-            
-            # 3. 針對每個 ticker 獨立計算 252 天的滾動百分位數
-            df['bbw_percentile'] = df.groupby('ticker')['temp_bbw'].transform(
-                lambda x: x.rolling(252).rank(pct=True)
-            )
-            
-            # 移除暫存的計算欄位
-            df = df.drop(columns=['temp_bbw'])
-        else:
-            df['bbw_percentile'] = np.nan
-            
+        # 2. 向量化方向變動 (Directional Movement)
+        up_move = high - prev_high
+        down_move = prev_low - low
+
+        # 使用 Pandas 原生 .where 進行純矩陣條件篩選 (取代迴圈與 if-else)
+        plus_dm = up_move.where((up_move > down_move) & (up_move > 0), 0.0)
+        minus_dm = down_move.where((down_move > up_move) & (down_move > 0), 0.0)
+
+        # 3. Wilder's Smoothing (等同於 RMA / alpha = 1/length)
+        tr_smooth = tr.ewm(alpha=1/length, min_periods=length, adjust=False).mean()
+        plus_dm_smooth = plus_dm.ewm(alpha=1/length, min_periods=length, adjust=False).mean()
+        minus_dm_smooth = minus_dm.ewm(alpha=1/length, min_periods=length, adjust=False).mean()
+
+        # 4. 向量化計算 +DI 與 -DI 矩陣
+        plus_di = 100 * (plus_dm_smooth / tr_smooth)
+        minus_di = 100 * (minus_dm_smooth / tr_smooth)
+
+        # 5. 計算 DX 與最終 ADX 矩陣
+        di_sum = plus_di + minus_di
+        di_diff = (plus_di - minus_di).abs()
+        
+        # .replace(0, np.nan) 避免分母為 0 產生無限大
+        dx = 100 * (di_diff / di_sum.replace(0, np.nan))
+        adx_matrix = dx.ewm(alpha=1/length, min_periods=length, adjust=False).mean()
+
+        adx_matrix.columns = pd.MultiIndex.from_product(
+            [['adx'], adx_matrix.columns], 
+            names=['feature', 'ticker']
+        ) 
+
+        return adx_matrix
+
+    def get_atr(self, df, length=14):
+        high = df.xs('high', axis=1, level='feature')
+        low = df.xs('low', axis=1, level='feature')
+        close = df.xs('adj_price', axis=1, level='feature')
+        prev_close = close.shift(1)
+
+        # 向量化計算 TR
+        tr1 = high - low
+        tr2 = (high - prev_close).abs()
+        tr3 = (low - prev_close).abs()
+        tr = np.maximum(np.maximum(tr1, tr2), tr3)
+
+        # 向量化 Wilder's Smoothing
+        atr_matrix = tr.ewm(alpha=1/length, min_periods=length, adjust=False).mean()
+
+        # 2. 直接在同一個步驟算出 60 日均線
+        atr_60d_avg_matrix = atr_matrix.rolling(window=60).mean()
+
+        # 3. 【關鍵升級】分別幫兩個指標掛上 MultiIndex
+        atr_matrix.columns = pd.MultiIndex.from_product(
+            [['atr'], atr_matrix.columns], 
+            names=['feature', 'ticker']
+        )
+        atr_60d_avg_matrix.columns = pd.MultiIndex.from_product(
+            [['atr_60d_avg'], atr_60d_avg_matrix.columns], 
+            names=['feature', 'ticker']
+        )
+
+        df = pd.concat([atr_matrix, atr_60d_avg_matrix], axis=1)
+        
         return df
-    
+
+    def get_bbw_percentile(self, df, length=20, std_mult=2):
+        close = df.xs('adj_price', axis=1, level='feature')
+        
+        # 【數學簡化極速版】
+        # 因為 Upper = BBM + 2*STD, Lower = BBM - 2*STD
+        # Upper - Lower = 4 * STD
+        # 所以 BBW = (4 * STD) / BBM，完全不需要真的算上下軌！
+        bbm = close.rolling(window=length).mean()
+        std = close.rolling(window=length).std()
+        
+        bbw_matrix = (2 * std_mult * std) / bbm
+        
+        # 對全市場二維矩陣直接進行 252 日滾動百分位數排序
+        bbw_percentile_matrix = bbw_matrix.rolling(window=252).rank(pct=True)
+
+        # 3. 【關鍵升級】掛上 MultiIndex 並併入原表
+        bbw_percentile_matrix.columns = pd.MultiIndex.from_product(
+            [['bbw_percentile'], bbw_percentile_matrix.columns], 
+            names=['feature', 'ticker']
+        )
+
+        return bbw_percentile_matrix
+
     def get_hv_percentile(self, df):
-        # 1. 計算對數報酬率 (Log Returns)
-        log_returns = np.log(df['adj_price'] / df.groupby('ticker')['adj_price'].shift(1))
+        drt = df.xs('adj_price', axis=1, level='feature')
+        # 1. 對數報酬率矩陣
+        log_returns = np.log(drt/ drt.shift(1))
         
-        # 2. 計算 20 日歷史波動率 (HV)
-        # 由於 log_returns 是獨立的 Series，需傳入 df['ticker'] 才能進行 groupby
-        hv = log_returns.groupby(df['ticker']).transform(
-            lambda x: x.rolling(20).std() * np.sqrt(252)
+        # 2. 20 日歷史波動率矩陣 (年化)
+        hv_matrix = log_returns.rolling(window=20).std() * np.sqrt(252)
+        
+        # 3. 252 日滾動百分位數矩陣
+        hv_percentile_matrix = hv_matrix.rolling(window=252).rank(pct=True)
+        
+        # 3. 【關鍵升級】掛上 MultiIndex 並併入原表
+        hv_percentile_matrix.columns = pd.MultiIndex.from_product(
+            [['hv_percentile'], hv_percentile_matrix.columns], 
+            names=['feature', 'ticker']
         )
         
-        # 3. 計算 252 日歷史波動率的百分位數 (Percentile)
-        # 同樣傳入 df['ticker'] 作為分組依據
-        df['hv_percentile'] = hv.groupby(df['ticker']).transform(
-            lambda x: x.rolling(252).rank(pct=True)
-        )
-        
-        return df
+        return hv_percentile_matrix
        
-    def get_yoy(self, df, ticker='ticker', date_col='date'):
-        # 1. 檢查必備欄位
-        if ticker not in df.columns or date_col not in df.columns:
-            raise ValueError(f"DataFrame 必須包含 '{ticker}' 與 '{date_col}' 欄位")
+    def get_yoy(self, df):
+        # 1. 防呆檢查與索引標準化 (確保 index 是 DatetimeIndex 且無時區)
+        if not isinstance(df.index, pd.DatetimeIndex):
+            raise ValueError("DataFrame 的 Index 必須是 DatetimeIndex！")
+        if df.index.tz is not None:
+            df.index = df.index.tz_localize(None)
 
-        unique_tickers = df[ticker].dropna().unique()
-        all_yoy_data = []
+        # 2. 從目前的 MultiIndex 提取所有不重複的股票代號
+        tickers = df.columns.get_level_values(1).unique()
+        
+        # 準備三個字典來收集各檔股票的 YoY 時間序列
+        dict_yoy_now = {}
+        dict_yoy_t1 = {}
+        dict_yoy_t2 = {}
 
-        # 2. 逐一計算並收集所有股票的歷史 YoY 時間表
-        for tk_sym in unique_tickers:
+        # 3. 逐一下載財報並計算 YoY
+        for tk_sym in tickers:
             tk_str = str(tk_sym).strip()
             tk = yf.Ticker(tk_str)
-            
             try:
                 financials = tk.financials
                 if financials is not None and not financials.empty:
-                    revenue_col = 'Total Revenue' if 'Total Revenue' in financials.index else ('Operating Revenue' if 'Operating Revenue' in financials.index else None)
+                    # 自動尋找營收欄位
+                    rev_col = 'Total Revenue' if 'Total Revenue' in financials.index else ('Operating Revenue' if 'Operating Revenue' in financials.index else None)
                     
-                    if revenue_col:
-                        rev = financials.loc[revenue_col].dropna()
-                        
+                    if rev_col:
+                        rev = financials.loc[rev_col].dropna()
                         if len(rev) > 1:
-                            # 為了點對點合併(merge_asof)，時間必須是「舊 -> 新」 (ascending=True)
-                            rev.index = pd.to_datetime(rev.index)
+                            # 轉為 Timestamp 並升冪排序 (舊 -> 新)
+                            rev.index = pd.to_datetime(rev.index).tz_localize(None)
                             rev = rev.sort_index(ascending=True)
                             
-                            # 計算 YoY，因為排序已改為舊到新，所以 periods 改為正數 1
+                            # 計算 YoY，因為是年報/季報，期數為 1
                             yoy = rev.pct_change(periods=1)
                             
-                            # 將該股票的 YoY 紀錄做成 DataFrame，並加入 90 天的資訊落後
-                            tk_yoy = pd.DataFrame({
-                                ticker: tk_sym,
-                                'release_date': yoy.index + pd.Timedelta(days=90), # 財報結算日 + 90 天
-                                'yoy_now': yoy,
-                                'yoy_t1': yoy.shift(1),
-                                'yoy_t2': yoy.shift(2)
-                            }).dropna(subset=['yoy_now']) # 移除無法計算初期的 NaN
+                            # 【防止未來函數】：加上 90 天作為財報發布日的保守估計
+                            yoy.index = yoy.index + pd.Timedelta(days=90)
                             
-                            all_yoy_data.append(tk_yoy)
+                            # 收集數據 (移除初期的 NaN)
+                            yoy_clean = yoy.dropna()
+                            dict_yoy_now[tk_sym] = yoy_clean
+                            dict_yoy_t1[tk_sym] = yoy_clean.shift(1)
+                            dict_yoy_t2[tk_sym] = yoy_clean.shift(2)
             except Exception as e:
-                print(f"[錯誤] 處理 {tk_str} 時發生例外狀況: {e}")
+                print(f"[警告] 處理 {tk_str} YoY 失敗: {e}")
 
-        # 如果沒有抓到任何資料
-        if not all_yoy_data:
-            df['yoy_now'] = df['yoy_t1'] = df['yoy_t2'] = np.nan
-            return df
+        # 4. 【核心黑魔法：建立寬格式矩陣 + 低頻自動填充至高頻日曆】
+        def build_aligned_matrix(data_dict, feature_name):
+            if not data_dict:
+                # 如果都沒抓到資料，產出一張全 NaN 的矩陣
+                matrix = pd.DataFrame(np.nan, index=df.index, columns=tickers)
+            else:
+                # 建立 [公佈日 x Ticker] 的初步矩陣
+                raw_matrix = pd.DataFrame(data_dict)
+                # 補齊原本 DataFrame 裡有的標的 (避免某些股票抓不到財報漏失欄位)
+                raw_matrix = raw_matrix.reindex(columns=tickers)
+                
+                # 【關鍵防護】將財報公佈日與原本的日每日股價 Index 合併排序
+                # 接著使用 method='ffill' (向前填充)，最後切除不要的日子，只保留 df 原本的營業日！
+                combined_index = raw_matrix.index.union(df.index).sort_values()
+                matrix = raw_matrix.reindex(combined_index).ffill().reindex(df.index)
+            
+            # 掛上標準的雙層 MultiIndex 標籤
+            matrix.columns = pd.MultiIndex.from_product(
+                [[feature_name], matrix.columns], 
+                names=['feature', 'ticker']
+            )
+            return matrix
 
-        # 3. 整合所有財報歷史
-        yoy_master = pd.concat(all_yoy_data, ignore_index=True)
-        
-        # 統一日期格式 (去除時區)
-        yoy_master['release_date'] = pd.to_datetime(yoy_master['release_date']).dt.tz_localize(None)
-        df[date_col] = pd.to_datetime(df[date_col]).dt.tz_localize(None)
+        # 5. 向量化生成三個指標矩陣
+        matrix_now = build_aligned_matrix(dict_yoy_now, 'yoy_now')
+        matrix_t1  = build_aligned_matrix(dict_yoy_t1, 'yoy_t1')
+        matrix_t2  = build_aligned_matrix(dict_yoy_t2, 'yoy_t2')
 
-        # 移除可能已存在的舊有欄位，避免合併時產生 _x, _y 後綴
-        cols_to_update = ['yoy_now', 'yoy_t1', 'yoy_t2']
-        df = df.drop(columns=[col for col in cols_to_update if col in df.columns], errors='ignore')
+        df = pd.concat([matrix_now, matrix_t1, matrix_t2], axis=1)
 
-        # 4. 點對點合併 (Point-in-Time Merge)
-        # 先決條件：兩邊的表都必須按時間欄位升冪排序
-        df = df.sort_values([ticker, date_col])
-        yoy_master = yoy_master.sort_values('release_date')
-
-        # 對於 df 中的每一天 (date_col)，往回找最近一個已公佈的 release_date
-        df = pd.merge_asof(
-            df,
-            yoy_master,
-            left_on=date_col,
-            right_on='release_date',
-            left_by=ticker,
-            right_by=ticker,
-            direction='backward'
-        )
-
-        # 5. 清理暫存的公佈日欄位，並恢復原本的 DataFrame 順序
-        df = df.drop(columns=['release_date'], errors='ignore').sort_index()
-        
         return df
     
     def get_indicators(self, df):
-        df = self.get_ma200(df)
-        df = self.get_rsi(df)
-        df = self.get_adx(df)
-        df = self.get_atr(df)
-        df = self.get_atr_60d_avg(df)
-        df = self.get_bbw_percentile(df)
-        df = self.get_vix_percentile(df) # 修正：傳入 df 並確保方法名稱一致
-        df = self.get_hv_percentile(df)
-        df = self.get_yoy(df)
+        indicators = [
+            df,
+            self.get_ma200(df),
+            self.get_rsi(df),
+            self.get_adx(df),
+            self.get_atr(df),
+            self.get_bbw_percentile(df),
+            self.get_vix_percentile(df),
+            self.get_hv_percentile(df),
+            self.get_yoy(df)
+        ]
         
-        # 修正：確保有 ticker 才呼叫，避免報錯
-        ticker = df['ticker'].iloc[0] if 'ticker' in df.columns else None
-        #df = self.get_yoy(df, ticker=ticker)
-        #df = df.groupby('ticker').tail(1).copy()       
-        return df
+        '''
+        names = ['df', 'ma200', 'rsi', 'adx', 'atr', 'bbw', 'vix', 'hv', 'yoy']
+        print("\n" + "="*40 + " 指標維度診斷報告 " + "="*40)
+        for name, ind_df in zip(names, indicators):
+            # 取得該指標目前的標的總數與矩陣形狀
+            t_count = ind_df.columns.get_level_values('ticker').nunique()
+            print(f"指標: {name:<10} | 標的數量: {t_count:<5} | 總欄位數 (shape[1]): {ind_df.shape[1]}")
+        print("="*100 + "\n")
+        '''
+
+        return pd.concat(indicators, axis=1)
+    
+if __name__ == "__main__":
+    import pandas as pd
+    # 這裡引入你之前寫好的 fetcher，用來撈取或讀取既有的快取資料
+    import core_utils.yfinance_fetcher as yfinance_fetcher
+
+    print("⏳ 正在讀取測試資料...")
+    
+    # 1. 準備測試資料 (強烈建議直接讀取你剛剛跑出 296/306 報錯的那份快取檔案或標的清單)
+    fetcher = yfinance_fetcher.YfinanceFetcher()
+    
+    # 【方式 B】或者直接調用 fetcher 載入你平常跑的標的：
+    # 這裡放上你平常測試的股票清單，讓它從快取讀入
+    #df_raw = fetcher.fetch(ticker=["2330.TW", "2317.TW", "2454.TW"], period="3y", use_cache=True)
+
+    df_raw = pd.read_parquet("data_cache/1101.TW_1102.TW_1210.TW_1216.TW_1229.TW_1301.TW_13_3y.parquet")
+
+    if df_raw.empty:
+        print("❌ 測試資料為空，請檢查標的或快取路徑！")
+    else:
+        print(f"✅ 成功載入原始資料！目前原始 DataFrame 的形狀為: {df_raw.shape}")
+        print("-" * 50)
+        
+        # 2. 實體化你的指標類別 (請把 Indicators 換成你程式碼裡 class 的名字)
+        ind = Indicators()
+        
+        # 3. 呼叫 get_indicators() 
+        # 👉 執行到這一步時，你在函式內部加的那段 for 迴圈 diagnostic print 就會自動在終端機噴出！
+        print("🚀 開始執行計算與指標診斷...\n")
+        df_ind = ind.get_indicators(df_raw)
+        
+        print("-" * 50)
+        print(f"🏁 全矩陣運算完畢！最終合併後的形狀為: {df_ind.shape}")
