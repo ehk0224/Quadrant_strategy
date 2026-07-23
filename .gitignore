@@ -4,6 +4,7 @@ strategy.py
 Quadrantbt.py
 strategy2.py
 line_notification.py
+strategy_opt.py
 
 # Notebook.gitignore
 TESTING NOTE.ipynb
@@ -14,6 +15,7 @@ Developing
 Mystocks_100_202305.txt
 Mystocks_150.txt
 Mystocks_s.txt
+dailysignal_utils
 
 # 數據檔案 (不要上傳超大 CSV)
 *.csv
