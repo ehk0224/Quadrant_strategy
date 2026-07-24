@@ -8,7 +8,7 @@ import quantstats as qs
 def main():
     start_time = time.time()  
 
-    sg = signal_generator.SignalGenerator(start='2023-05-15', end='2026-05-15', period=None)
+    sg = signal_generator.SignalGenerator(start='2016-01-01', end='2026-05-15', period=None)
     close_df, entries_df, exits_df = sg.generate_signals()
     benchmark_rets = sg.benchmark()
 
@@ -80,7 +80,7 @@ def main():
         qs.reports.html(
             qs_input, 
             benchmark=qs_benchmark, 
-            output='portfolio_tearsheet.html',
+            output='22_2016-2019portfolio_tearsheet.html',
             title='My Strategy Tearsheet'
         )
         print("報表產出成功！")

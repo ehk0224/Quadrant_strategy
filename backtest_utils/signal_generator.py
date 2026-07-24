@@ -1,11 +1,9 @@
 import pandas as pd
-import concurrent.futures
 import time
-import random
 from backtest_utils.indicatorsbt import Indicators
 import core_utils.yfinance_fetcher as yfinance_fetcher
 import core_utils.Quadrant as Quadrant
-from core_utils.strategy import QuadrantStrategy
+from core_utils.strategy_opt import QuadrantStrategy
 import traceback
 
 class SignalGenerator:
@@ -130,14 +128,72 @@ class SignalGenerator:
         except Exception as e:
             print(f"獲取 TWII 失敗: {e}")
         return None
+    
+
+    def pure_for_signal(self, use_parquet=True):
+        start_time = time.time()
+        
+        try:
+            with open('Mystocks.txt', encoding='utf-16') as f:
+                ticker_list = [line.strip() for line in f if line.strip()]
+
+            if not ticker_list:
+                print("錯誤：'Mystocks.txt' 檔案為空。")
+                return None, None, None
+                
+            print(f"開始批量獲取 {len(ticker_list)} 檔標的資料與執行全矩陣運算...")
+
+            fetcher = yfinance_fetcher.YfinanceFetcher()
+            df_raw = fetcher.fetch(ticker_list, start=self.start, end=self.end, period=self.period)
+            
+            if df_raw is None or df_raw.empty:
+                print("未成功取得任何數據。")
+                return None, None, None
+
+            ind = Indicators()
+            df_ind = ind.get_indicators(df_raw)
+            ana = Quadrant.MarketQuadrantAnalyzer()
+            df_final = ana.analyze_dataframe(df_ind)
+
+            elapsed_time = time.time() - start_time
+            print(f"評分計算完成！總耗時: {elapsed_time:.2f} 秒")
+
+            ext = 'parquet' if use_parquet else 'csv'
+            cache_path = f"data_cache_matrix.{ext}"
+            
+            self.save_to_cache(df_final, cache_path, use_parquet)
+
+            return df_final
+
+        except Exception as e:
+            # 💡 強制印出「完整追蹤行號」，不要只印 e！
+            print("❌ 程式在 try 區塊內部發生致命錯誤，報錯行號與細節如下：")
+            print(traceback.format_exc())  
+            return None, None, None
+
+        except FileNotFoundError:
+            print("錯誤：找不到 'Mystocks.txt' 檔案。")
+            return None, None, None
+        except Exception as e:
+            print(f"發生錯誤: {e}")
+            return None, None, None
+        
+    def save_to_cache(self, df, cache_path, use_parquet=True):
+        '''
+        Save the DataFrame to cache in either Parquet or CSV format.
+        '''
+        try:
+            if use_parquet:
+                df.to_parquet(cache_path, index=True)
+            else:
+                df.to_csv(cache_path, encoding='utf-8-sig', index=True)
+
+        except Exception as e:
+            print(f"⚠️ 儲存快取失敗: {e}")
 
 
 if __name__ == "__main__":
-    sg = SignalGenerator(ticker="AAPL")
-    close_df, entries_df, exits_df = sg.generate_signals()
-    print("Close DataFrame:")
-    print(close_df.head())
-    print("Entries DataFrame:")
-    print(entries_df.head())
-    print("Exits DataFrame:")
-    print(exits_df.head())
+    sg = SignalGenerator(start='2023-05-15', end='2026-05-15')
+    df = sg.pure_for_signal()
+    print(df.head())
+    

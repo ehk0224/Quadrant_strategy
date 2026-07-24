@@ -4,10 +4,81 @@ import yfinance as yf
 import numpy as np
 
 class Indicators:
-    def __init__(self, period="3y", length=200, global_vix=False):
+    def __init__(self, period="3y", length=300):
         self.period = period
         self.length = length
-        self.latest_vix_p = global_vix # 是否全局快取 VIX 百分位數
+
+    def get_vwap(self, df):
+        if isinstance(df.columns, pd.MultiIndex):
+            price_matrix = df.xs('adj_price', axis=1, level=0)
+            volume_matrix = df.xs('volume', axis=1, level=0)
+        else:
+            raise TypeError(
+                    f"DataFrame 欄位結構錯誤。預期為 MultiIndex，"
+                    f"實際 columns 型態為 {type(df.columns)}，內容: {df.columns[:5]}"
+                )
+        
+        vwap_matrix = (price_matrix * volume_matrix) / volume_matrix
+        vwap_matrix.columns = pd.MultiIndex.from_product(
+            [['vwap'], vwap_matrix.columns],
+            names=['feature', 'ticker']
+        )
+
+        return vwap_matrix
+    
+    def get_ema(self, df):
+        if isinstance(df.columns, pd.MultiIndex):
+            price_matrix = df.xs('adj_price', axis=1, level=0)
+        else:
+            raise TypeError(
+                    f"DataFrame 欄位結構錯誤。預期為 MultiIndex，"
+                    f"實際 columns 型態為 {type(df.columns)}，內容: {df.columns[:5]}"
+                )
+        
+        ema5_matrix = price_matrix.ewm(span=5, adjust=False).mean()
+        ema20_matrix = price_matrix.ewm(span=20, adjust=False).mean()
+        ema200_matrix = price_matrix.ewm(span=200, adjust=False).mean() #getma200
+        
+        ema5_matrix.columns = pd.MultiIndex.from_product(
+            [['ema5'], ema5_matrix.columns],
+            names=['feature', 'ticker']
+        )
+
+        ema20_matrix.columns = pd.MultiIndex.from_product(
+            [['ema20'], ema20_matrix.columns],
+            names=['feature', 'ticker']
+        )
+
+        ema200_matrix.columns = pd.MultiIndex.from_product(
+            [['ema200'], ema200_matrix.columns],
+            names=['feature', 'ticker']
+        )
+
+        df = pd.concat([ema5_matrix, ema20_matrix, ema200_matrix], axis=1)
+
+        return df
+
+    def get_obv(self, df):
+        if isinstance(df.columns, pd.MultiIndex):
+            price_matrix = df.xs('adj_price', axis=1, level=0)
+            volume_matrix = df.xs('volume', axis=1, level=0)
+        else:
+            raise TypeError(
+                    f"DataFrame 欄位結構錯誤。預期為 MultiIndex，"
+                    f"實際 columns 型態為 {type(df.columns)}，內容: {df.columns[:5]}"
+                )
+        price_direction = np.sign(price_matrix.diff())
+    
+        # 第一天的漲跌幅為 NaN，補 0 避免影響計算
+        price_direction = price_direction.fillna(0)
+        obv_matrix = (price_direction * volume_matrix).cumsum()
+
+        obv_matrix.columns = pd.MultiIndex.from_product(
+            [['obv'], obv_matrix.columns],
+            names=['features', 'ticker']
+        )
+
+        return obv_matrix
 
     def get_vix_percentile(self, df):
         # 1. 防呆：檢查 df 的 index 是否為時間索引，並標準化（移除時區以利絕對對齊）
@@ -47,7 +118,7 @@ class Indicators:
         
         return vix_matrix
 
-    def get_ma200(self, df):
+    def get_sma(self, df):
         # 1. 防禦性檢查：確認是否有 MultiIndex
         if isinstance(df.columns, pd.MultiIndex):
             price_matrix = df.xs('adj_price', axis=1, level='feature')
@@ -62,16 +133,29 @@ class Indicators:
                     f"實際 columns 型態為 {type(df.columns)}，內容: {df.columns[:5]}"
                 )
             
-        # --- 計算 200 日移動平均 ---
+        ma5_matrix = price_matrix.rolling(5).mean()
+        ma20_matrix = price_matrix.rolling(20).mean()
         ma200_matrix = price_matrix.rolling(200).mean()
 
         # --- 為新計算的矩陣「重新掛上」雙層欄位標籤 ---
+        ma5_matrix.columns = pd.MultiIndex.from_product(
+            [['ma5'], ma5_matrix.columns], 
+            names=['feature', 'ticker']
+        )
+
+        ma20_matrix.columns = pd.MultiIndex.from_product(
+            [['ma20'], ma20_matrix.columns], 
+            names=['feature', 'ticker']
+        )
+
         ma200_matrix.columns = pd.MultiIndex.from_product(
             [['ma200'], ma200_matrix.columns], 
             names=['feature', 'ticker']
         )
 
-        return ma200_matrix
+        df = pd.concat([ma5_matrix, ma20_matrix, ma200_matrix], axis=1)
+
+        return df
     
     def get_rsi(self, df):
         # 1. 向量化計算每日漲跌 (直接對整個 2D 矩陣相減)
@@ -305,25 +389,18 @@ class Indicators:
     def get_indicators(self, df):
         indicators = [
             df,
-            self.get_ma200(df),
+            #self.get_vwap(df),
+            #self.get_ema(df),
+            self.get_sma(df),
             self.get_rsi(df),
             self.get_adx(df),
             self.get_atr(df),
+            #self.get_obv(df),
             self.get_bbw_percentile(df),
             self.get_vix_percentile(df),
             self.get_hv_percentile(df),
             self.get_yoy(df)
         ]
-        
-        '''
-        names = ['df', 'ma200', 'rsi', 'adx', 'atr', 'bbw', 'vix', 'hv', 'yoy']
-        print("\n" + "="*40 + " 指標維度診斷報告 " + "="*40)
-        for name, ind_df in zip(names, indicators):
-            # 取得該指標目前的標的總數與矩陣形狀
-            t_count = ind_df.columns.get_level_values('ticker').nunique()
-            print(f"指標: {name:<10} | 標的數量: {t_count:<5} | 總欄位數 (shape[1]): {ind_df.shape[1]}")
-        print("="*100 + "\n")
-        '''
 
         return pd.concat(indicators, axis=1)
     

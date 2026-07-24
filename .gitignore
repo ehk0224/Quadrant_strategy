@@ -11,11 +11,13 @@ TESTING NOTE.ipynb
 notebooks
 
 # File.gitignore
-Developing
-Mystocks_100_202305.txt
+History
+excel
+data_cache
+tearsheet_report
 Mystocks_150.txt
-Mystocks_s.txt
 dailysignal_utils
+FX.txt
 
 # 數據檔案 (不要上傳超大 CSV)
 *.csv

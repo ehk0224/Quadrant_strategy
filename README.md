@@ -2,187 +2,153 @@
 
 [中文版README](./README_zh_TW.md)
 
-## Strategy Performance
+## Performance Overview
+![Strategy Equity Curve](./equity_curve/2016-2026.png)
+> **Note**: The backtest period spans a 10-year market bull/bear cycle, using 300 highly liquid assets for cross-sectional simulation.
 
-| Metrics | Value |
-| :--- | :--- |
-| **Total Return [%]** | 35.083834 |
-| **Annualized Return [%]** | 24.4945 |
-| **Annualized Volatility [%]** | 10.95015 |
-| **Max Drawdown [%]** | 10.384584 |
-| **Sharpe Ratio** | 2.056173 |
-| **Calmar Ratio** | 2.358737 |
-| **Sortino Ratio** | 2.877798 |
-| **Skew** | -0.737905 |
-| **Value at Risk (95% CI)** | -0.010185 |
+| Performance Metrics                       | Full Period | In-Sample  | Out-of-Sample | Out-of-Sample |
+| :---------------------------------------- | :---------- | :--------- | :------------ | :------------ |
+| **Period**                                | 2016-2026   | 2023-2026  | 2018-2023     | 2016-2019     |
+| **CAGR [%]**                              | 10.20       | 22.58      | 11.52         | 6.32          |
+| **Annualized Volatility [%]**             | 7.86        | 12.54      | 9.17          | 5.80          |
+| **Max Drawdown [%]**                      | 11.83       | 7.93       | 12.97         | 6.18          |
+| **Sharpe Ratio**                          | 1.79        | 2.20       | 1.70          | 1.46          |
+| **Calmar Ratio**                          | 1.24        | 3.87       | 1.27          | 1.41          |
+| **Sortino Ratio**                         | 2.51        | 3.24       | 2.39          | 2.02          |
+| **Beta**                                  | 0.24        | 0.30       | 0.29          | 0.28          |
+| **Alpha**                                 | 0.06        | 0.10       | 0.07          | 0.04          |
+| **Value at Risk (95% CI)**                | -0.006      | -0.009     | -0.006        | -0.005        |
 
-![Cumulative Equity](./equity_curve/Cumulative_Equity0515.png)
 
-> **Note**: The backtest covers 500 days of market cycles, utilizing a cross-sectional simulation of the top 300 highly liquid assets.
 
-## Research Motivation
+## **Table of Contents**
+* [Strategy Logic](#strategy-logic)
+* [Data and Validation Methods](#data-and-validation-methods)
+* [Detailed Backtest Results and Robustness Validation](#detailed-backtest-results-and-robustness-validation)
+* [Risks and Limitations](#risks-and-limitations)
+* [Installation and Usage](#installation-and-usage)
 
-The Taiwan equity market frequently exhibits two types of price dislocations:  
-1. **value opportunities** (undervalued stocks in bottoming phases)
-2. **momentum opportunities** (prices pushed higher by market sentiment or capital inflows). 
 
-Traditional single-factor strategies often capture only one of these, performing poorly during regime transitions.
+## Strategy Logic
+### I. Research Motivation
+Two common price deviation phenomena in the Taiwan Stock Market: 
+1. **Value-oriented opportunities** (Undervalued prices, in the bottoming phase).
+2. **Momentum-oriented opportunities** (Rapid price expansion driven by market sentiment or capital inflows).
 
-This project aims to build a **long-biased systematic strategy** that captures both types of alpha by using a **four-quadrant market regime framework**.
+Traditional single-factor strategies often capture only one of these and easily fail during market shifts. The core concept of this strategy is to capture both alpha sources simultaneously through a **four-quadrant framework**, creating a systematic long-biased strategy tailored for the Taiwan Stock Market.
 
-We define market states along two key dimensions:
-- **Volatility**: measuring the intensity of market sentiment
-- **Price Expansion/Contraction**: measuring the direction and strength of price deviation from recent baselines
+Market states are defined along two core dimensions:
+1. **Price Volatility**: Measures the intensity of market sentiment.
+2. **Price Expansion/Contraction**: Measures the direction and magnitude of price deviation relative to recent baselines.
+ 
+This design aims to capture both "value reversion" and "trend continuation" profit models, maintaining stable positive returns across different market phases while effectively controlling downside risk.
 
-By identifying transitions between the four quadrants, the strategy dynamically adjusts positions:
-- Accumulate in **bottoming/undervalued zones** (low volatility + contraction)
-- Ride trends in **expansion zones** (low-to-medium volatility + expansion)
-- Reduce exposure during overheating or panic phases
+### II. Stock Pool Selection
 
-The goal is to combine the strengths of mean-reversion (value) and trend-following (momentum) approaches, generating robust returns across market cycles while maintaining strict risk control.
+* **Liquidity Filtering**: Includes only the top 300 stocks by market capitalization in the Taiwan Stock Market with high liquidity.
+* **Practical Considerations**: Ensures the model maintains high capacity during live trading, mitigating performance erosion from slippage, making it suitable for institutional-grade capital allocation.
+* **Selection Criteria**:  
 
-## Table of Contents
-
-  * [Core Strategy Logic](#core-strategy-logic)
-  * [In-depth Performance Analysis](#in-depth-performance-analysis)
-  * [Strategy Validation and Robustness Analysis](#strategy-validation-and-robustness-analysis)
-  * [Installation and Usage](#installation-and-usage)
-
------
-
-## Core Strategy Logic
-
-This project implements a quantitative trading model focused on the **Top 300 liquid assets in the Taiwan stock market**. The core logic categorizes market dynamics into four quadrants based on two dimensions: **Volatility** and **Price Expansion/Contraction**.
-
-Unlike traditional single-factor models, this strategy dynamically captures transition signals between quadrants to adjust asset allocation. It is an adaptive weighting system designed to maintain extremely low portfolio volatility while achieving robust risk-adjusted returns (Sharpe Ratio 2.056).
-
-### 1\. Universe Selection
-
-  * **Liquidity Filter**: Only stocks within the top 300 by market capitalization are included.
-  * **Practical Consideration**: This ensures high **capital capacity** and minimizes **slippage**, making the strategy suitable for institutional-scale allocation.
-  * **Screening Criteria**:
-
-| Criteria Type | Threshold (Taiwan Market) | Description |
+| Metric Type | Selection Threshold (Taiwan Market) | Description |
 | :--- | :--- | :--- |
-| Market Cap | \> 10 Billion TWD | Filters out small-caps and penny stocks. |
-| Avg. Daily Value | \> 50 Million TWD | Ensures smooth entry/exit for retail or small quant funds. |
-| Institutional Std. | \> 100 Million TWD | Optimized for institutional simulations with minimal slippage. |
-| Daily Volume | \> 1,000 Lots (Shares) | Prevents order book gaps and ensures execution continuity. |
+| Market Cap | > 10 Billion TWD | Excludes small-cap and low-priced turnaround stocks. |
+| Avg Daily Turnover | > 50 Million TWD | Ensures smooth execution for retail or small-scale quantitative models. |
+| Avg Daily Turnover (High Standard) | > 100 Million TWD | Suitable for simulating low-slippage environments in backtests (e.g., institutional level). |
+| Trading Volume | > 1,000 Lots (1M shares) | Ensures continuous order book depth during trading hours without order book gaps. |
 
-### 2\. The Quadrant Logic
 
-Market states are defined to trigger entry and exit signals:
+### III. Four-Quadrant Logic
+Defines market states to determine entry and exit signals:
+* **Quadrant I**: High Volatility + Price Expansion (Overheated / Turning Point Level).
+* **Quadrant II**: High Volatility + Price Contraction (Panic Selling Level).
+* **Quadrant III**: Low Volatility + Price Contraction (Bottoming / Consolidation Level).
+* **Quadrant IV**: Low Volatility + Price Expansion (Stable Trend Level).
 
-  * **Quadrant I**: High Volatility + Price Expansion (Overheating / Pivot phase).
-  * **Quadrant II**: High Volatility + Price Contraction (Panic Selling phase).
-  * **Quadrant III**: Low Volatility + Price Contraction (Bottoming / Consolidation phase).
-  * **Quadrant IV**: Low Volatility + Price Expansion (Stable Trend phase).
+## Data and Validation Methods
 
------
+### I. Data Period and IS/OOS Split
 
-## In-depth Performance Analysis
+- This strategy employs a framework of "Recent Data Training (Model Calibration) with Long-term Historical Out-of-Sample Validation (Historical OOS / Stress Test)":
 
-### 1\. Descriptive Statistics
+1. **In-Sample / Training Period (2023–2026):** Given recent shifts in market microstructure and volatility, recent data is used as the training set to ensure the strategy logic precisely captures Alpha in the "current market environment."
+2. **Historical OOS Validation Period (2016–2023):** The calibrated strategy is backtested against the preceding 8 years as a historical OOS test—covering events such as the 2020 COVID liquidity shock and the 2022 bear market—to ensure high robustness and survivability across diverse market cycles.
 
-The **Total Return of 35.08%** over 726 days (including a 225-day burn-in period) reflects an **Annualized Return of 24.49%**, demonstrating consistent long-term profitability. With an **Annualized Volatility of 10.95%**, the equity curve remains exceptionally stable with minimal fluctuations.
+### II. Parameter Optimization
+- Grid Search is utilized.
 
-  * **Risk-Adjusted Return**: A **Sharpe Ratio of 2.056** indicates a healthy balance between risk and reward. The **Sortino Ratio (2.878)** outperforms the Sharpe Ratio, suggesting the strategy is particularly effective at mitigating downside risk compared to overall volatility.
+### III. Validation Methods
+1. **Cross-section (Asset) Permutation**
+- Randomly shuffles "holding signals" across different assets.
 
-  * **Drawdown & Resilience**: The **Max Drawdown (MDD) of 10.38%** highlights the strategy’s conservative nature. However, the **Max Drawdown Duration of 299 days** (nearly a year) indicates a long recovery period, which tests investor patience during stagnation.
+    > **H0**: The strategy's superior performance is merely a result of randomly picking specific stocks.<br>**H1**: The strategy's stock selection rules possess genuine Alpha.
 
-  * **Distribution Profile**: A **Kurtosis of 2.45** (expressed as excess kurtosis) confirms that the strategy exhibits a "fat-tail" (leptokurtic) distribution, where extreme events occur more frequently than in a normal distribution. However, when compared to the market benchmark's kurtosis of 7.68, the strategy demonstrates significantly reduced tail risk, indicating a more stable return profile under extreme market conditions. Meanwhile, a **Tail Ratio of 0.861** shows relative symmetry between extreme gains and losses, and the 95% **VaR of -0.01%** further highlights that daily downside risk is strictly managed.
+- Result: Statistically Significant.
+![CS_distribution](./equity_curve/asset_permutation.png)
 
-### 2\. Equity Curve Analysis (Backtest: May 2024 – May 2026)
+2. **Stationary Bootstrap**
+- Preserves time-series dependence by resampling continuous blocks.
 
-Excluding the burn-in period, the equity curve illustrates three distinct phases:
+    > **H0**: The strategy's superior performance is merely due to fortunate alignment with specific time series structures.<br>**H1**: The strategy's performance significantly outperforms the predictive capability of random holding structures.
 
-1.  **Phase 1: Initial Alpha & Market Entry (Mid-2024)**:
-      * **Performance**: Assets rose steadily from the 29.6M baseline to a peak of approximately 32.5M.
-      * **Description**: This marked the strategy's "initial dividend period," where the system successfully captured early-stage trend signals and established a positive capital cushion.
-2.  **Correction, Consolidation & Resilience (Mid-2024 – Mid-2025)**:
-      * **Performance**: The strategy experienced its Maximum Drawdown (MDD) of ~10.38%, with equity dipping to a low of approximately 29M before entering a prolonged lateral plateau.
-      * **Market Context**: Following the AI-driven surge in 2024, the market transitioned into a high-volatility "price contraction" phase in 1H 2025. Geopolitical uncertainty surrounding the post-2024 US election and shifting Fed interest rate expectations led to significant market washouts. This resulted in an underwater period of approximately 360–450 days.
-      * **Optimization Path**: This phase highlighted the necessity of defensive stability. Future iterations will integrate Dynamic Position Sizing and Advanced Money Management modules to further mitigate friction costs during non-trend environments.
-3.  **Phase 3: Exponential Growth & Price Expansion (Late 2025 – May 2026)**:
-      * **Performance**: The equity curve resumed a powerful upward trajectory, decisively breaking through the 35M resistance and hitting a new all-time high above 40M in May 2026.
-      * **Macro Drivers**: As the market matured in 2026, the 2nm mass production cycle and a global electronic hardware replacement wave drove a massive "price expansion" phase. This provided high-conviction entry signals that the strategy successfully capitalized on.
-      * **Adaptability**: The steep, step-like ascent during this period demonstrates the strategy’s exceptional ability to capture high-velocity rallies led by blue-chip technology stocks, achieving a total return of +35.5% from the inception point.
+- Result: Not Statistically Significant.
+![SB_distribution](./equity_curve/stationary_permutation.png)
 
------
+## Detailed Backtest Results and Robustness Validation
 
-## Strategy Validation and Robustness Analysis
-To ensure the strategy's performance is driven by structural logic rather than random noise or over-optimization, we conducted the following statistical tests:
+### I. Equity Curves
+| In-Sample <br>2023/05/15-2026/05/15 | Early OOS <br> 2016/01/01-2019/12/31 | Long-term OOS <br> 2018/01/01-2023/12/31 |
+| :--- | :--- | :---|
+| ![2023-2026.png](./equity_curve/2023-2026.png) | ![2018-2023.png](./equity_curve/2018-2023.png) | ![2016-2019.png](./equity_curve/2016-2019.png) |
 
-### 1. Monte Carlo Benchmark (Statistical Significance)
+### II. Random Entry/Exit Monte Carlo
 
-This test compares the strategy’s performance against 1,000 random trading paths (shuffling entry/exit while maintaining the same frequency).
+Validates the superiority of the strategy logic through random entry/exit simulations (maintaining the same entry frequency as the original strategy).
 
-- Benchmark Parameters:
-  - Daily Entry Probability: 0.2166
-  - Daily Exit Probability: 0.3611
+| In-Sample <br>2023/05/15-2026/05/15 | Long-term OOS <br> 2018/01/01-2023/12/31 | Early OOS <br> 2016/01/01-2019/12/31 |
+| :--- | :--- | :---|
+| ![random_2023-2026.png](./equity_curve/random_2023-2026.png) | ![random_2018-2023.png](./equity_curve/random_2018-2023.png) | ![random_2016-2019.png](./equity_curve/random_2016-2019.png) |
+| Daily Entry Prob: 0.0314<br>Daily Exit Prob: 0.2222 | Daily Entry Prob: 0.0271<br>Daily Exit Prob: 0.2814 | Daily Entry Prob: 0.0242<br>Daily Exit Prob: 0.2946 |
+| Strategy Portfolio Sharpe Ratio: 2.1962 | Strategy Portfolio Sharpe Ratio: 1.7034 | Strategy Portfolio Sharpe Ratio: 1.4633 |
+| Random Simulation Avg Sharpe Ratio: -1.1350 | Random Simulation Avg Sharpe Ratio: -3.0767 | Random Simulation Avg Sharpe Ratio: -4.8352 |
+| P-Value: 0.001 (p<0.05) | P-Value: 0.001 (p<0.05) | P-Value: 0.001 (p<0.05) |
 
-- Results:
-  - Portfolio Sharpe Ratio: 2.056
-  - Mean Sharpe Ratio of Random Simulations: -1.3842
-  - P-Value: 0.0010 (p<0.05)
 
-![MC_random_signal](./equity_curve/MC_random_signal.png)
+### III. Block Bootstrap
 
-Conclusion: The strategy’s performance is statistically significant. With a p-value of 0.1%, we can reject the null hypothesis that the returns are generated by chance, confirming a genuine edge in the logic.
+Uses Block Bootstrap to reorder historical data and test the strategy's resilience across different temporal environments.
 
-### 2. Block Bootstrap (Robustness Testing)
+1. **Iterations: 1,000, Block Size: 1 Day**
 
-We utilized a Block Bootstrap method to assess how the strategy performs under different historical sequences, accounting for time-series look-ahead bias and serial correlation.
+| Metrics | In-Sample <br>2023/05/15-2026/05/15 | Long-term OOS <br> 2018/01/01-2023/12/31 | Early OOS <br> 2016/01/01-2019/12/31 |
+| :--- | :--- | :---| :--- |
+| Distribution | ![1d_2023-2026.png](./equity_curve/1d_2023-2026.png) | ![1d_2018-2023](./equity_curve/1d_2018-2023.png) | ![1d_2016-2019](./equity_curve/1d_2016-2019.png) |
+| Mean Final Equity Multiple | 1.47x | 1.70x | 1.19x |
+| Median Final Equity Multiple | 1.44x | 1.69x | 1.18x |
+| 90% Confidence Interval | [1.15x, 1.84x] | [1.28x, 2.19x] | [1.05x, 1.35x] |
+| Probability of Final Loss | 0.7% | 0.3% | 1.6% |
 
-- Simulation Setup:
-  - Iterations: 1,000
-  - Block Size: 20 days
 
-- Key Metrics:
-  - Mean Final Equity Multiple: 1.33x
-  - Median Final Equity Multiple: 1.32x
-  - 90% Confidence Interval: [1.05x,1.67x]
-  - Probability of Loss (Final Equity < 1): 1.9%
+2. **Iterations: 1,000, Block Size: 20 Days**
 
-![Bootstrap_Equity](./equity_curve/Bootstrap_Equity.png)
+| Metrics | In-Sample <br>2023/05/15-2026/05/15 | Long-term OOS <br> 2018/01/01-2023/12/31 | Early OOS <br> 2016/01/01-2019/12/31 |
+| :--- | :--- | :---| :--- |
+| Distribution | ![20d_2023-2026](./equity_curve/20d_2023-2026.png) | ![20d_2018-2023](./equity_curve/20d_2018-2023.png) | ![20d_2016-2019](./equity_curve/20d_2016-2019.png) |
+| Mean Final Equity Multiple | 1.42x | 1.75x | 1.19x |
+| Median Final Equity Multiple | 1.39x | 1.71x | 1.18x |
+| 90% Confidence Interval | [1.11x, 1.81x] | [1.31x, 2.31x] | [1.04x, 1.35x] |
+| Probability of Final Loss | 0.5% | 0.1% | 1.1% |
 
-Conclusion: The strategy demonstrates high resilience across reshuffled market regimes. In 1,000 paths, 98.3% ended in a profit, with the 90% confidence interval remaining strictly above the break-even line.
+  
 
-### 3. Out-of-Sample (OOS) Test
-
-To verify that the strategy retains its efficacy on data not used during the parameter optimization phase, we conducted tests across two distinct periods.
-
-| Metrics | 2016 – 2019 (Early OOS) | 2018 – 2023 (Long-term OOS) |
-| :--- | :--- | :--- |
-| Annualized Return	| 13.94%	| 18.35% |
-| Annualized Volatility	| 9.34%	| 13.41% |
-| Sharpe Ratio	| 1.45	| 1.32 |
-| Sortino Ratio	| 1.94	| 1.78 |
-| Max Drawdown	| 11.96%	| 15.75% |
-| Calmar Ratio	| 1.17	| 1.16 |
-
-**(2016-2019)**
-![Cumulative Equity 2016-2019](./equity_curve/Cumulative_Equity_2016-2019.png)
-
-**(2018-2023)**
-![Cumulative Equity 2018-2023](./equity_curve/Cumulative_Equity_2018-2023.png)
-
-Conclusion: The strategy exhibits remarkable consistency. Maintaining a Sharpe Ratio above 1.2 across different market cycles suggests strong generalization and minimal overfitting.
-
-### 4. Benchmark Comparison
-
-Evaluated the strategy's risk-adjusted excess returns relative to the **Taiwan Capitalization Weighted Stock Index (^TWII)**.
-
-- Beta (Systemic Risk): 0.24
-  - The strategy shows very low correlation with the broader market, indicating a highly idiosyncratic return profile.
-
-- Alpha (Annualized Excess Return): 6%
-  - After adjusting for market risk, the strategy generates a consistent annual surplus of approximately 6%.
-
-![Benchmark Equity](./equity_curve/Benchmark_Equity.png)
-
-Conclusion: The combination of a low Beta and high Alpha confirms that the strategy does not rely on market beta (general upward trends) for profit. Instead, it captures structural alpha through its specific logic.
-
+## Risks and Limitations
+1. **Limited Timing Predictive Power**: Stationary Bootstrap and time-series dependency tests show that the strategy does not possess a significant edge in entry/exit timing. Strategy performance is sensitive to market path; if future return sequence time structures deviate significantly from historical samples, actual performance may diverge noticeably from backtest results.
+2. **Cross-Sectional Edge May Decay with Structural Shifts**: Cross-section Permutation tests indicate that the strategy possesses stock selection/exclusion capabilities. However, this edge relies on current asset correlations, sector rotation, and risk premium structures. If market regimes shift permanently (e.g., factor decay, liquidity structural changes, or regulatory changes), cross-sectional alpha may diminish.
+3. **Limited Out-of-Sample Validation Window**: Although single or multi-period OOS Bootstrap results show significant positive expectation, OOS periods remain relatively limited. This cannot fully rule out luck stemming from specific market environments (such as specific volatility or trend regimes). Further validation across longer periods and additional market regimes remains necessary.
+4. **Parameter Optimization and Multiple Testing Risk**: Parameter tuning was involved during strategy development. Although mitigated using permutation and bootstrap methods, data-snooping risk cannot be entirely eliminated. Re-optimizing parameters frequently based on the latest data should be avoided in practice.
+5. **Transaction Costs, Slippage, and Liquidity Constraints**: Backtest results generally do not fully account for real-world impact costs, slippage, and execution failures. While medium-to-low frequency strategies have lower turnover, actual costs during market stress or in illiquid assets may significantly exceed backtest assumptions, eroding net returns.
+6. **Long-term Sample Does Not Eliminate Path Dependency Risk**: The backtest covers approximately 10 years of data, showing positive expected returns across most sub-periods. However, Stationary Bootstrap results indicate performance sensitivity to specific time paths. While a 10-year sample provides substantial reference value, it cannot cover all potential structural shifts or tail-risk scenarios, and future performance may still deviate.
+7. **Model Risk and Black Swan Events**: The strategy relies on historical statistical relationships, offering limited defense against extreme market events (such as sudden liquidity drains, policy shocks, or systemic risks). Backtests and simulations cannot anticipate unseen risk factors.
+8. **Limitations of Benchmarks and Comparisons**: The strategy outperforms certain random holding structures or simple benchmarks, but this does not guarantee consistent outperformance against broader market indices long term. Investors should evaluate performance based on individual risk tolerance and portfolio allocation context rather than relying solely on historical Sharpe ratios or equity curves.
 -----
 
 ## Installation and Usage
@@ -211,10 +177,10 @@ Conclusion: The combination of a low Beta and high Alpha confirms that the strat
 
 ### Intellectual Property Statement
 
-This project, including all algorithms, strategy logic (specifically the Quadrant analysis), and backtesting frameworks, was independently developed by the author between January 1, 2026, and May 15, 2026.
+This project, including all algorithms, strategy logic (specifically the Quadrant analysis), and backtesting frameworks, was independently developed by the author between January 1, 2026, and July 24, 2026.
 
 All rights reserved. This project constitutes Pre-hire Intellectual Property and is explicitly excluded from any future employment-related invention assignments.
 
 Digital Signature (SHA-256):
-82ecdb400e1f84506d84115322e91bd1a01fec52ca7dd6388ce16bec986e8ca6
-Verification snapshot of the full source code (including proprietary modules) taken on 2026-05-15.
+a06eae2ec81ba574fdbdccb09ecb9162880c9bbf240033ad3808731f66939df9
+Verification snapshot of the full source code (including proprietary modules) taken on 2026-07-24.
